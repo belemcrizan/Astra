@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+artifacts/runs/*.jsonl
+artifacts/reports/*.json
+artifacts/reports/*.md
+!artifacts/runs/.gitkeep
+!artifacts/reports/.gitkeep
+

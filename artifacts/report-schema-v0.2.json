@@ -1,0 +1,327 @@
+{
+  "$defs": {
+    "AgentResult": {
+      "properties": {
+        "agent_id": {
+          "title": "Agent Id",
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/AgentStatus",
+          "default": "completed"
+        },
+        "summary": {
+          "title": "Summary",
+          "type": "string"
+        },
+        "evidence_score": {
+          "description": "Uncalibrated operational score; not a probability.",
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Evidence Score",
+          "type": "number"
+        },
+        "latency_ms": {
+          "minimum": 0,
+          "title": "Latency Ms",
+          "type": "number"
+        },
+        "evidence": {
+          "items": {
+            "$ref": "#/$defs/Evidence"
+          },
+          "title": "Evidence",
+          "type": "array"
+        },
+        "findings": {
+          "additionalProperties": true,
+          "title": "Findings",
+          "type": "object"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Error"
+        }
+      },
+      "required": [
+        "agent_id",
+        "summary",
+        "evidence_score",
+        "latency_ms"
+      ],
+      "title": "AgentResult",
+      "type": "object"
+    },
+    "AgentStatus": {
+      "enum": [
+        "completed",
+        "skipped",
+        "failed"
+      ],
+      "title": "AgentStatus",
+      "type": "string"
+    },
+    "Decision": {
+      "enum": [
+        "pass",
+        "human_review",
+        "insufficient_evidence",
+        "blocked"
+      ],
+      "title": "Decision",
+      "type": "string"
+    },
+    "Evidence": {
+      "properties": {
+        "code": {
+          "title": "Code",
+          "type": "string"
+        },
+        "statement": {
+          "title": "Statement",
+          "type": "string"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        },
+        "threshold": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Threshold"
+        },
+        "passed": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Passed"
+        }
+      },
+      "required": [
+        "code",
+        "statement"
+      ],
+      "title": "Evidence",
+      "type": "object"
+    },
+    "GovernanceResult": {
+      "properties": {
+        "decision": {
+          "$ref": "#/$defs/Decision"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        },
+        "human_review_required": {
+          "default": true,
+          "title": "Human Review Required",
+          "type": "boolean"
+        },
+        "prohibited_actions": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Prohibited Actions",
+          "type": "array"
+        }
+      },
+      "required": [
+        "decision",
+        "reason"
+      ],
+      "title": "GovernanceResult",
+      "type": "object"
+    },
+    "Hypothesis": {
+      "properties": {
+        "hypothesis_id": {
+          "title": "Hypothesis Id",
+          "type": "string"
+        },
+        "claim": {
+          "title": "Claim",
+          "type": "string"
+        },
+        "evidence_score": {
+          "description": "Uncalibrated evidence ranking score.",
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Evidence Score",
+          "type": "number"
+        },
+        "supporting_agents": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Supporting Agents",
+          "type": "array"
+        },
+        "required_evidence": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Required Evidence",
+          "type": "array"
+        },
+        "falsification_status": {
+          "default": "pending",
+          "title": "Falsification Status",
+          "type": "string"
+        },
+        "counterevidence": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Counterevidence",
+          "type": "array"
+        }
+      },
+      "required": [
+        "hypothesis_id",
+        "claim",
+        "evidence_score",
+        "supporting_agents",
+        "required_evidence"
+      ],
+      "title": "Hypothesis",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "run_id": {
+      "title": "Run Id",
+      "type": "string"
+    },
+    "correlation_id": {
+      "title": "Correlation Id",
+      "type": "string"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "dataset_version": {
+      "title": "Dataset Version",
+      "type": "string"
+    },
+    "model_version": {
+      "default": "astra-poc-0.2.0",
+      "title": "Model Version",
+      "type": "string"
+    },
+    "methodology_version": {
+      "title": "Methodology Version",
+      "type": "string"
+    },
+    "preregistration_sha256": {
+      "title": "Preregistration Sha256",
+      "type": "string"
+    },
+    "seed": {
+      "title": "Seed",
+      "type": "integer"
+    },
+    "agents": {
+      "items": {
+        "$ref": "#/$defs/AgentResult"
+      },
+      "title": "Agents",
+      "type": "array"
+    },
+    "hypotheses": {
+      "items": {
+        "$ref": "#/$defs/Hypothesis"
+      },
+      "title": "Hypotheses",
+      "type": "array"
+    },
+    "governance": {
+      "$ref": "#/$defs/GovernanceResult"
+    },
+    "metrics": {
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "type": "number"
+          },
+          {
+            "type": "integer"
+          },
+          {
+            "type": "string"
+          },
+          {
+            "type": "boolean"
+          }
+        ]
+      },
+      "title": "Metrics",
+      "type": "object"
+    },
+    "scientific_evaluation": {
+      "additionalProperties": true,
+      "title": "Scientific Evaluation",
+      "type": "object"
+    }
+  },
+  "required": [
+    "correlation_id",
+    "dataset_version",
+    "methodology_version",
+    "preregistration_sha256",
+    "seed",
+    "agents",
+    "hypotheses",
+    "governance",
+    "metrics",
+    "scientific_evaluation"
+  ],
+  "title": "InvestigationReport",
+  "type": "object"
+}

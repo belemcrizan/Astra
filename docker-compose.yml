@@ -1,0 +1,10 @@
+services:
+  astra:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      ASTRA_OUTPUT_DIR: /app/artifacts
+    volumes:
+      - ./artifacts:/app/artifacts
+
