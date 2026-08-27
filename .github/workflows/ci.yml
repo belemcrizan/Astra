@@ -1,4 +1,4 @@
-name: astra-v02-ci
+name: astra-v03-ci
 
 on:
   push:
@@ -16,8 +16,12 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
-      - run: python -m pip install -e .
+      - run: python -m pip install -e ".[api,dev]"
       - run: python -m unittest discover -s tests -v
-      - run: python -m astra_poc demo --seed 42 --points 2400
+      - run: python -m astra_poc judge-demo
+      - run: python -m astra_poc hero-demo
+      - run: python -m astra_poc control-demo
+      - run: python -m astra_poc demo-failures
+      - run: python -m astra_poc real-demo
       - run: python -m astra_poc schema
-
+      - run: python -m astra_poc preregistration

@@ -1,29 +1,35 @@
-# Pre-registro metodologico - ASTRA v0.2
+# Methodological Preregistration — ASTRA v0.3
 
-Este arquivo declara as regras antes do benchmark oficial da v0.2. A fonte executavel e `src/astra_poc/preregistration.py`; toda execucao grava o SHA-256 canonico dessa configuracao no relatorio.
+This document formalizes the scientific experimental rules and detection thresholds prior to benchmark evaluation. The executable definition is maintained in `src/astra_poc/preregistration.py`, and every generated report embeds the canonical SHA-256 hash of this configuration.
 
-## Hipoteses
+---
 
-- H1: a serie possui ao menos uma mudanca relevante de regime de media ou volatilidade.
-- H2: eventos conhecidos estao alinhados a uma resposta com a forma pre-especificada.
+## 1. Primary Hypotheses
 
-## Regras congeladas
+- **H1 (Transient Statistical Fluctuation):** The observed anomaly is a transient sampling outlier with no structural or volatility change.
+- **H2 (Gradual Regime Change):** The series exhibits a persistent transition in mean return or volatility structure.
+- **H3 (Abrupt Structural Break):** A sharp, discrete change-point occurred in the underlying distribution parameters.
+- **H4 (Coordinated Weak Signal):** Events precede a structured, repeated weak response waveform detectable via temporal alignment.
+- **H_unknown (Unmodeled Anomaly):** Residual dynamics not adequately modeled by existing parametric representations.
 
-- change-points usam pareamento temporal um-para-um;
-- tolerancia: 3,5% do comprimento da serie, com minimo de 20 pontos;
-- anomalias usam tolerancia de 2 pontos;
-- intervalos binomiais: Wilson 95%;
-- Signal Agent: `|z robusto| >= 7`;
-- Regime Agent: janela 100, score minimo 0,75, separacao minima 240;
-- H2: 999 deslocamentos temporais circulares, alternativa unilateral positiva e `alpha=0,01`;
-- baselines: CUSUM, Page-Hinkley, PELT Gaussiano e BOCPD com parametros registrados no codigo;
-- nenhum threshold pode ser alterado depois de observar o benchmark sem gerar nova versao metodologica.
+---
 
-## Metricas primarias
+## 2. Frozen Evaluation Parameters
 
-Precision, recall, F1, falsos alarmes por 1.000 pontos, atraso assinado, atraso absoluto e IC95% de precision/recall. Para H2: p-valor empirico, poder no sinal fixo e taxa de falso positivo quando a amplitude injetada e zero.
+- **Change-point Matching:** One-to-one order-preserving matching via dynamic programming (`one_to_one_minimum_absolute_delay`).
+- **Temporal Tolerance Window:** 3.5% of series length with a minimum threshold of 20 points.
+- **Anomaly Detection Tolerance:** 2 discrete time steps.
+- **Proportion Intervals:** Exact Wilson 95% confidence intervals.
+- **Signal Detection Gate:** Robust Z-score $|z| \ge 7.0$ using median absolute deviation scaling ($1.4826 \times \text{MAD}$).
+- **Regime Score Threshold:** Window size 100, score threshold 0.75, minimum separation 240 points.
+- **Temporal Null Stacking (H4):** 999 circular time-shift permutations, one-sided upper tail, $\alpha = 0.01$.
+- **Detection Baselines:** CUSUM, Page-Hinkley, Gaussian PELT, and BOCPD with frozen parameters.
+- **Investigation Budget Limits:** Maximum 5 steps, maximum 6 tests, maximum 10.0 cost units.
 
-## Criterio de governanca
+---
 
-Uma hipotese so segue para `human_review` quando supera o evidence score operacional e a falsificacao pre-registrada. Exaustao, timeout ou falta de evidencia nunca produzem aprovacao automatica.
+## 3. Epistemic Invariants
 
+- No thresholds may be modified after observing benchmark outcomes without incrementing the methodology version and regenerating the SHA-256 identity.
+- Synthetic controlled claims (Track A) and real-world empirical observations (Track B) must never be merged into aggregate metrics.
+- `evidence_score` is an operational heuristic ranking, not a calibrated probability.
