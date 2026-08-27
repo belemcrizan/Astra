@@ -27,6 +27,14 @@ class BenchmarkScenario:
     watermark: str = "SYNTHETIC_BENCHMARK_FAMILY"
     sha256: str = "scenario-sha256"
 
+    @property
+    def anomaly_index(self) -> int:
+        if self.hidden_anomalies:
+            return self.hidden_anomalies[0]
+        if self.hidden_regime_changes:
+            return self.hidden_regime_changes[0]
+        return 600
+
 
 class ScenarioGenerator:
     """Generates 10 Controlled Investigation Benchmark Scenario Families (A through J)."""

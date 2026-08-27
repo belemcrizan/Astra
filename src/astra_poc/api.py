@@ -19,6 +19,7 @@ from .contracts import InvestigationReport
 from .datasets import generate_synthetic_market
 from .google_agent import ASTRAInvestigationAgent, GoogleAgentReport
 from .investigation.engine import InvestigationEngine
+from .scenarios.registry import ScenarioRegistry
 from .ui import INVESTIGATION_UI_HTML
 
 # Configure structured Cloud Logging
@@ -39,7 +40,7 @@ def detect_runtime() -> str:
 
 app = FastAPI(
     title="ASTRA Investigation Service",
-    version="0.4.1",
+    version="0.4.2",
     description="Evidence-Driven Autonomous Investigation Engine powered by Google ADK, Gemini 3.5+, and Google Cloud Run.",
 )
 
@@ -53,7 +54,7 @@ async def add_security_headers(request: Request, call_next: Any) -> Response:
 
 
 class AgentInvestigateRequest(BaseModel):
-    scenario: str = Field(default="hero", description="Scenario type ('hero', 'control', 'unknown', 'adversarial')")
+    scenario: str = Field(default="hero", description="Scenario identifier ('hero', 'control', 'unknown', 'budget', 'adversarial', 'multimodal', 'real_world')")
     seed: int = Field(default=42, description="Random seed for reproducible dataset generation")
     points: int = Field(default=2400, description="Total series points")
     max_turns: int = Field(default=5, description="Maximum agent turns")
@@ -78,7 +79,7 @@ async def health() -> dict[str, Any]:
     return {
         "status": "healthy",
         "service": "astra-investigation-service",
-        "version": "0.4.1",
+        "version": "0.4.2",
         "runtime": runtime_env,
         "agent_framework": "Google ADK",
         "cloud_infrastructure": "Google Cloud Run" if runtime_env == "Google Cloud Run" else "local",
@@ -88,7 +89,7 @@ async def health() -> dict[str, Any]:
 @app.get("/version")
 async def get_version() -> dict[str, Any]:
     return {
-        "version": "0.4.1",
+        "version": "0.4.2",
         "service": "astra-investigation-service",
         "runtime": detect_runtime(),
         "preregistration_sha256": "1b2eeaeb0a3f842cb4afaab755bd27fee469b818e05298bdbfd64d73ac0975a4",
@@ -102,7 +103,7 @@ async def get_api_status() -> dict[str, Any]:
     """Status endpoint for UI badges and remote verification."""
     return {
         "service": "ASTRA",
-        "version": "0.4.1",
+        "version": "0.4.2",
         "runtime": detect_runtime(),
         "agent_framework": "Google ADK",
         "agent_name": "astra_investigation_planner",
@@ -110,6 +111,23 @@ async def get_api_status() -> dict[str, Any]:
         "model": os.getenv("ASTRA_GEMINI_MODEL", "gemini-3.5-flash-lite"),
         "status": "online",
     }
+
+
+@app.get("/api/scenarios")
+async def get_scenarios() -> list[dict[str, Any]]:
+    """Returns canonical scenario catalog metadata for UI and tests."""
+    return [
+        {
+            "id": s.id,
+            "family": s.family,
+            "display_name": s.display_name,
+            "description": s.description,
+            "expected_decision": s.expected_decision.value,
+            "semantic_expectation": s.semantic_expectation,
+            "demo_purpose": s.demo_purpose,
+        }
+        for s in ScenarioRegistry.list_scenarios()
+    ]
 
 
 @app.get("/schema")
@@ -122,17 +140,18 @@ async def agent_investigate(req: AgentInvestigateRequest) -> dict[str, Any]:
     """Execute end-to-end investigation orchestrated by Google ADK Agent."""
     start_time = time.perf_counter()
     
-    # Map scenario name to scenario family
-    scenario_map = {
-        "hero": "C",
-        "control": "A",
-        "unknown": "H",
-        "adversarial": "I",
-    }
-    fam = scenario_map.get(req.scenario.lower(), "C")
-    sc = ScenarioGenerator.generate_scenario(fam, seed=req.seed)
+    if req.scenario.lower() in ("real_world", "real"):
+        adapter = RealMarketAdapter()
+        dataset = adapter.load()
+        returns = dataset.returns
+        anomaly_idx = 600
+        case_id = f"cloud-case-real-{req.seed}"
+    else:
+        sc = ScenarioRegistry.generate(req.scenario, seed=req.seed)
+        returns = sc.returns
+        anomaly_idx = sc.anomaly_index
+        case_id = f"cloud-case-{req.scenario}-{req.seed}"
     
-    case_id = f"cloud-case-{req.scenario}-{req.seed}"
     model_name = os.getenv("ASTRA_GEMINI_MODEL", "gemini-3.5-flash-lite")
     
     # Log start event
@@ -145,10 +164,9 @@ async def agent_investigate(req: AgentInvestigateRequest) -> dict[str, Any]:
     }
     logger.info(json.dumps(start_record))
 
-    anomaly_idx = sc.hidden_anomalies[0] if sc.hidden_anomalies else (sc.hidden_regime_changes[0] if sc.hidden_regime_changes else 600)
     agent = ASTRAInvestigationAgent(max_turns=req.max_turns, model=model_name)
     report = await agent.run_investigation(
-        returns=sc.returns,
+        returns=returns,
         anomaly_idx=anomaly_idx,
         case_id=case_id,
     )

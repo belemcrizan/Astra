@@ -277,6 +277,8 @@ class ASTRAInvestigationAgent:
         stop_reason = StopReason.DECISION_SUFFICIENT
 
         # 2. Autonomous Multi-Turn Agent Loop
+        latest_candidate_utils: list[dict[str, Any]] = []
+
         while not sm.is_terminal and not budget.is_exhausted():
             ranked_hyps = pool.get_ranked_hypotheses()
             utility_estimates = VoIEngine.evaluate_candidates(
@@ -285,6 +287,19 @@ class ASTRAInvestigationAgent:
                 executed_ops=tools.executed_ops,
                 unknown_score=pool.unknown_score,
             )
+
+            latest_candidate_utils = [
+                {
+                    "operation": u.action.value,
+                    "eig": round(u.expected_info_gain, 3),
+                    "efg": round(u.expected_falsification_gain, 3),
+                    "edr": round(u.expected_decision_gain, 3),
+                    "cost": round(u.cost, 2),
+                    "voi": round(u.voi, 3),
+                    "rank": idx + 1,
+                }
+                for idx, u in enumerate(utility_estimates)
+            ]
 
             # Check stopping policy
             should_stop, evaluated_stop_reason, stop_msg = StoppingPolicy.evaluate_stop(
@@ -299,8 +314,16 @@ class ASTRAInvestigationAgent:
 
             # Turn count boundary
             if budget.steps_used >= self.max_turns:
-                stop_reason = StopReason.BUDGET_EXHAUSTED
+                if pool.unknown_score >= 0.60 or (ranked_hyps and ranked_hyps[0].id == "H_unknown"):
+                    stop_reason = StopReason.UNKNOWN_DOMINANT
+                elif ranked_hyps and ranked_hyps[0].evidence_score >= 0.65:
+                    stop_reason = StopReason.DECISION_SUFFICIENT
+                else:
+                    stop_reason = StopReason.BUDGET_EXHAUSTED
                 break
+
+            # Snapshot scores before turn
+            before_scores = {h.id: (h.evidence_score, h.name) for h in pool.get_ranked_hypotheses()}
 
             # Call Gemini / ADK Planner for next proposal
             proposals_count += 1
@@ -327,6 +350,23 @@ class ASTRAInvestigationAgent:
                 args=proposal.args,
             )
 
+            # Compute hypothesis belief deltas
+            deltas = []
+            for h in pool.get_ranked_hypotheses():
+                b_score, name = before_scores.get(h.id, (h.evidence_score, h.name))
+                delta = round(h.evidence_score - b_score, 3)
+                direction = "SUPPORTS" if delta > 0 else ("CONTRADICTS" if delta < 0 else "NEUTRAL")
+                from .schemas import HypothesisDeltaRecord
+                deltas.append(HypothesisDeltaRecord(
+                    hypothesis_id=h.id,
+                    hypothesis_name=name,
+                    score_before=round(b_score, 3),
+                    score_after=round(h.evidence_score, 3),
+                    score_delta=delta,
+                    direction=direction,
+                    resulting_status=h.status.value,
+                ))
+
             if res.get("validation_passed"):
                 proposals_accepted += 1
                 executed_ops.append(proposal.proposed_operation.value)
@@ -339,6 +379,8 @@ class ASTRAInvestigationAgent:
                     astra_validation_passed=True,
                     executed_operation=proposal.proposed_operation.value,
                     evidence_generated=[{"statement": s} for s in res.get("evidence", [])],
+                    hypothesis_deltas=deltas,
+                    candidate_utilities=latest_candidate_utils,
                     trace_id=trace_id,
                 )
             else:
@@ -351,6 +393,8 @@ class ASTRAInvestigationAgent:
                     proposal=proposal,
                     astra_validation_passed=False,
                     validation_error=res.get("error"),
+                    hypothesis_deltas=deltas,
+                    candidate_utilities=latest_candidate_utils,
                     trace_id=trace_id,
                 )
                 stop_reason = StopReason.SAFETY_BOUNDARY
@@ -422,6 +466,7 @@ class ASTRAInvestigationAgent:
                 for cf in counterfactuals
             ],
             provenance_records=provenance_log,
+            candidate_utilities=latest_candidate_utils,
             series_preview=preview_data,
             duration_ms=duration_ms,
         )

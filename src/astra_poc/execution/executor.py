@@ -23,82 +23,151 @@ class DSLExecutor:
         self.template = getattr(data, "template", None)
         self.seed = getattr(data, "seed", 42)
 
+    def _is_heavy_tailed_open_set(self) -> tuple[bool, float]:
+        """Calculates excess kurtosis to detect non-parametric heavy-tailed / Cauchy regimes."""
+        if len(self.returns) < 20:
+            return False, 0.0
+        std = self.returns.std()
+        if std < 1e-12:
+            return False, 0.0
+        norm_r = (self.returns - self.returns.mean()) / std
+        kurt = float(np.mean(norm_r**4) - 3.0)
+        return kurt > 6.0, kurt
+
     def execute(self, operation: DSLOperation) -> DSLResult:
         started = time.perf_counter()
         op_name = operation.op_name
         args = operation.args or {}
 
         try:
+            is_ht, overall_kurt = self._is_heavy_tailed_open_set()
+
             if op_name == DSLOperationName.RUN_CUSUM:
                 res = cusum_baseline(self.returns, **args)
                 cps = res.change_points
                 has_cps = len(cps) > 0
-                ev = EvidenceItem(
-                    code="CUSUM_DETECTIONS",
-                    statement=f"CUSUM detected {len(cps)} volatility change-points.",
-                    value=len(cps),
-                    threshold=1,
-                    passed=has_cps,
-                    hypotheses_discriminated=["H1", "H2"],
-                    why_selected=operation.reasoning,
-                    cost_units=operation.cost_units,
-                )
-                supports = ["H2", "H3"] if has_cps else ["H1"]
-                contradicts = ["H1"] if has_cps else ["H2", "H3"]
+                if is_ht:
+                    ev = EvidenceItem(
+                        code="CUSUM_HEAVY_TAIL_SPURIOUS",
+                        statement=f"CUSUM detected {len(cps)} potential triggers, but series exhibits extreme excess kurtosis ({overall_kurt:.2f} > 6.0), indicating spurious detections under non-parametric open-set dynamics.",
+                        value=round(overall_kurt, 2),
+                        threshold=6.0,
+                        passed=True,
+                        hypotheses_discriminated=["H1", "H2", "H3", "H_unknown"],
+                        why_selected=operation.reasoning,
+                        cost_units=operation.cost_units,
+                    )
+                    supports = ["H_unknown"]
+                    contradicts = ["H1", "H2", "H3", "H4"]
+                else:
+                    ev = EvidenceItem(
+                        code="CUSUM_DETECTIONS",
+                        statement=f"CUSUM detected {len(cps)} volatility change-points.",
+                        value=len(cps),
+                        threshold=1,
+                        passed=has_cps,
+                        hypotheses_discriminated=["H1", "H2"],
+                        why_selected=operation.reasoning,
+                        cost_units=operation.cost_units,
+                    )
+                    supports = ["H2", "H3"] if has_cps else ["H1"]
+                    contradicts = ["H1"] if has_cps else ["H2", "H3"]
                 return self._build_result(operation, res.to_dict(), [ev], supports, contradicts, started)
 
             elif op_name == DSLOperationName.RUN_PAGE_HINKLEY:
                 res = page_hinkley_baseline(self.returns, **args)
                 cps = res.change_points
                 has_cps = len(cps) > 0
-                ev = EvidenceItem(
-                    code="PAGE_HINKLEY_DETECTIONS",
-                    statement=f"Page-Hinkley detected {len(cps)} cumulative change-points.",
-                    value=len(cps),
-                    threshold=1,
-                    passed=has_cps,
-                    hypotheses_discriminated=["H1", "H2", "H3"],
-                    why_selected=operation.reasoning,
-                    cost_units=operation.cost_units,
-                )
-                supports = ["H2", "H3"] if has_cps else ["H1"]
-                contradicts = ["H1"] if has_cps else ["H2", "H3"]
+                if is_ht:
+                    ev = EvidenceItem(
+                        code="PAGE_HINKLEY_HEAVY_TAIL_SPURIOUS",
+                        statement=f"Page-Hinkley detected {len(cps)} cumulative change-points, but series exhibits extreme excess kurtosis ({overall_kurt:.2f} > 6.0), indicating heavy-tailed open-set process.",
+                        value=round(overall_kurt, 2),
+                        threshold=6.0,
+                        passed=True,
+                        hypotheses_discriminated=["H1", "H2", "H3", "H_unknown"],
+                        why_selected=operation.reasoning,
+                        cost_units=operation.cost_units,
+                    )
+                    supports = ["H_unknown"]
+                    contradicts = ["H1", "H2", "H3", "H4"]
+                else:
+                    ev = EvidenceItem(
+                        code="PAGE_HINKLEY_DETECTIONS",
+                        statement=f"Page-Hinkley detected {len(cps)} cumulative change-points.",
+                        value=len(cps),
+                        threshold=1,
+                        passed=has_cps,
+                        hypotheses_discriminated=["H1", "H2", "H3"],
+                        why_selected=operation.reasoning,
+                        cost_units=operation.cost_units,
+                    )
+                    supports = ["H2", "H3"] if has_cps else ["H1"]
+                    contradicts = ["H1"] if has_cps else ["H2", "H3"]
                 return self._build_result(operation, res.to_dict(), [ev], supports, contradicts, started)
 
             elif op_name == DSLOperationName.RUN_PELT:
                 res = pelt_baseline(self.returns, **args)
                 cps = res.change_points
                 has_cps = len(cps) > 0
-                ev = EvidenceItem(
-                    code="PELT_DETECTIONS",
-                    statement=f"PELT exact partitioning identified {len(cps)} optimal segment boundaries.",
-                    value=len(cps),
-                    threshold=1,
-                    passed=has_cps,
-                    hypotheses_discriminated=["H1", "H2", "H3"],
-                    why_selected=operation.reasoning,
-                    cost_units=operation.cost_units,
-                )
-                supports = ["H3", "H2"] if has_cps else ["H1"]
-                contradicts = ["H1"] if has_cps else ["H3", "H2"]
+                if is_ht:
+                    ev = EvidenceItem(
+                        code="PELT_HEAVY_TAIL_SPURIOUS",
+                        statement=f"PELT exact partitioning identified {len(cps)} segment boundaries, but series exhibits extreme excess kurtosis ({overall_kurt:.2f} > 6.0), violating Gaussian model assumptions.",
+                        value=round(overall_kurt, 2),
+                        threshold=6.0,
+                        passed=True,
+                        hypotheses_discriminated=["H1", "H2", "H3", "H_unknown"],
+                        why_selected=operation.reasoning,
+                        cost_units=operation.cost_units,
+                    )
+                    supports = ["H_unknown"]
+                    contradicts = ["H1", "H2", "H3", "H4"]
+                else:
+                    ev = EvidenceItem(
+                        code="PELT_DETECTIONS",
+                        statement=f"PELT exact partitioning identified {len(cps)} optimal segment boundaries.",
+                        value=len(cps),
+                        threshold=1,
+                        passed=has_cps,
+                        hypotheses_discriminated=["H1", "H2", "H3"],
+                        why_selected=operation.reasoning,
+                        cost_units=operation.cost_units,
+                    )
+                    supports = ["H3", "H2"] if has_cps else ["H1"]
+                    contradicts = ["H1"] if has_cps else ["H3", "H2"]
                 return self._build_result(operation, res.to_dict(), [ev], supports, contradicts, started)
 
             elif op_name == DSLOperationName.RUN_BOCPD:
                 res = bocpd_baseline(self.returns, **args)
                 cps = res.change_points
                 has_cps = len(cps) > 0
-                ev = EvidenceItem(
-                    code="BOCPD_DETECTIONS",
-                    statement=f"BOCPD detected {len(cps)} MAP run-length collapses.",
-                    value=len(cps),
-                    threshold=1,
-                    passed=has_cps,
-                    hypotheses_discriminated=["H2", "H3"],
-                    why_selected=operation.reasoning,
-                    cost_units=operation.cost_units,
-                )
-                supports = ["H2", "H3"] if has_cps else ["H1"]
-                contradicts = ["H1"] if has_cps else ["H2", "H3"]
+                if is_ht:
+                    ev = EvidenceItem(
+                        code="BOCPD_HEAVY_TAIL_SPURIOUS",
+                        statement=f"BOCPD detected {len(cps)} MAP run-length collapses under heavy-tailed non-Gaussian distribution ({overall_kurt:.2f} > 6.0).",
+                        value=round(overall_kurt, 2),
+                        threshold=6.0,
+                        passed=True,
+                        hypotheses_discriminated=["H1", "H2", "H3", "H_unknown"],
+                        why_selected=operation.reasoning,
+                        cost_units=operation.cost_units,
+                    )
+                    supports = ["H_unknown"]
+                    contradicts = ["H1", "H2", "H3", "H4"]
+                else:
+                    ev = EvidenceItem(
+                        code="BOCPD_DETECTIONS",
+                        statement=f"BOCPD detected {len(cps)} MAP run-length collapses.",
+                        value=len(cps),
+                        threshold=1,
+                        passed=has_cps,
+                        hypotheses_discriminated=["H2", "H3"],
+                        why_selected=operation.reasoning,
+                        cost_units=operation.cost_units,
+                    )
+                    supports = ["H2", "H3"] if has_cps else ["H1"]
+                    contradicts = ["H1"] if has_cps else ["H2", "H3"]
                 return self._build_result(operation, res.to_dict(), [ev], supports, contradicts, started)
 
             elif op_name == DSLOperationName.COMPARE_WINDOWS:
