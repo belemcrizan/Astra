@@ -8,16 +8,18 @@ import time
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
+from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 from pydantic import BaseModel, Field
 
 from .adapters.real_market import RealMarketAdapter
+from .benchmarks.scenarios import ScenarioGenerator
 from .config import Settings
 from .contracts import InvestigationReport
 from .datasets import generate_synthetic_market
 from .google_agent import ASTRAInvestigationAgent, GoogleAgentReport
 from .investigation.engine import InvestigationEngine
+from .ui import INVESTIGATION_UI_HTML
 
 # Configure structured Cloud Logging
 logger = logging.getLogger("astra.api")
@@ -42,12 +44,32 @@ app = FastAPI(
 )
 
 
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next: Any) -> Response:
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    return response
+
+
 class AgentInvestigateRequest(BaseModel):
     scenario: str = Field(default="hero", description="Scenario type ('hero', 'control', 'unknown', 'adversarial')")
     seed: int = Field(default=42, description="Random seed for reproducible dataset generation")
     points: int = Field(default=2400, description="Total series points")
     max_turns: int = Field(default=5, description="Maximum agent turns")
     use_agent: bool = Field(default=True, description="Whether to engage Google ADK Agent planner")
+
+
+@app.get("/", response_class=HTMLResponse)
+async def root() -> str:
+    """Serves the interactive ASTRA Investigation UI."""
+    return INVESTIGATION_UI_HTML
+
+
+@app.get("/favicon.ico")
+async def favicon() -> Response:
+    """Favicon endpoint to prevent 404 noise."""
+    return Response(status_code=204)
 
 
 @app.get("/health")
@@ -75,6 +97,21 @@ async def get_version() -> dict[str, Any]:
     }
 
 
+@app.get("/api/status")
+async def get_api_status() -> dict[str, Any]:
+    """Status endpoint for UI badges and remote verification."""
+    return {
+        "service": "ASTRA",
+        "version": "0.4.1",
+        "runtime": detect_runtime(),
+        "agent_framework": "Google ADK",
+        "agent_name": "astra_investigation_planner",
+        "model_provider": "Google",
+        "model": os.getenv("ASTRA_GEMINI_MODEL", "gemini-3.5-flash-lite"),
+        "status": "online",
+    }
+
+
 @app.get("/schema")
 async def get_schema() -> dict[str, Any]:
     return InvestigationReport.model_json_schema()
@@ -84,18 +121,42 @@ async def get_schema() -> dict[str, Any]:
 async def agent_investigate(req: AgentInvestigateRequest) -> dict[str, Any]:
     """Execute end-to-end investigation orchestrated by Google ADK Agent."""
     start_time = time.perf_counter()
-    data = generate_synthetic_market(points=req.points, seed=req.seed)
     
-    agent = ASTRAInvestigationAgent(max_turns=req.max_turns)
+    # Map scenario name to scenario family
+    scenario_map = {
+        "hero": "C",
+        "control": "A",
+        "unknown": "H",
+        "adversarial": "I",
+    }
+    fam = scenario_map.get(req.scenario.lower(), "C")
+    sc = ScenarioGenerator.generate_scenario(fam, seed=req.seed)
+    
+    case_id = f"cloud-case-{req.scenario}-{req.seed}"
+    model_name = os.getenv("ASTRA_GEMINI_MODEL", "gemini-3.5-flash-lite")
+    
+    # Log start event
+    start_record = {
+        "event": "astra_investigation_started",
+        "case_id": case_id,
+        "scenario": req.scenario,
+        "model": model_name,
+        "runtime": detect_runtime(),
+    }
+    logger.info(json.dumps(start_record))
+
+    anomaly_idx = sc.hidden_anomalies[0] if sc.hidden_anomalies else (sc.hidden_regime_changes[0] if sc.hidden_regime_changes else 600)
+    agent = ASTRAInvestigationAgent(max_turns=req.max_turns, model=model_name)
     report = await agent.run_investigation(
-        returns=data.returns,
-        anomaly_idx=600,
-        case_id=f"cloud-case-{req.scenario}-{req.seed}",
+        returns=sc.returns,
+        anomaly_idx=anomaly_idx,
+        case_id=case_id,
     )
     
     latency_ms = round((time.perf_counter() - start_time) * 1000, 2)
-    
-    # Emit structured Google Cloud log
+    report.duration_ms = latency_ms
+
+    # Log completed event
     log_record = {
         "event": "astra_investigation_completed",
         "trace_id": report.trace_id,
@@ -110,6 +171,17 @@ async def agent_investigate(req: AgentInvestigateRequest) -> dict[str, Any]:
     }
     logger.info(json.dumps(log_record))
     
+    # If any rejection occurred, log it
+    for prov in report.provenance_records:
+        if not prov.astra_validation_passed:
+            rej_record = {
+                "event": "astra_dsl_proposal_rejected",
+                "trace_id": report.trace_id,
+                "operation": prov.proposal.proposed_operation.value,
+                "reason": prov.validation_error,
+            }
+            logger.warning(json.dumps(rej_record))
+
     return report.model_dump()
 
 

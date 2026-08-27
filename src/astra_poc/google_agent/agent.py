@@ -248,6 +248,7 @@ class ASTRAInvestigationAgent:
         case_id: str | None = None,
         budget: InvestigationBudget | None = None,
     ) -> GoogleAgentReport:
+        start_time = time.perf_counter()
         case_id = case_id or f"case-adk-{uuid4().hex[:8]}"
         trace_id = f"trace-{uuid4().hex[:12]}"
         budget = budget or InvestigationBudget(max_steps=self.max_turns, max_tests=self.max_turns, max_cost_units=10.0)
@@ -330,6 +331,7 @@ class ASTRAInvestigationAgent:
                 proposals_accepted += 1
                 executed_ops.append(proposal.proposed_operation.value)
                 prov_rec = AgentExecutionProvenance(
+                    turn=proposals_count,
                     agent_framework="Google ADK",
                     model_provider="Google",
                     model=self.model,
@@ -342,6 +344,7 @@ class ASTRAInvestigationAgent:
             else:
                 proposals_rejected += 1
                 prov_rec = AgentExecutionProvenance(
+                    turn=proposals_count,
                     agent_framework="Google ADK",
                     model_provider="Google",
                     model=self.model,
@@ -387,11 +390,17 @@ class ASTRAInvestigationAgent:
             unknown_score=pool.unknown_score,
         )
 
+        step_sample = max(1, len(returns) // 120)
+        preview_data = [round(float(v), 5) for v in returns[::step_sample]]
+        duration_ms = round((time.perf_counter() - start_time) * 1000, 2)
+
         return GoogleAgentReport(
             case_id=case_id,
             trace_id=trace_id,
+            scenario_name=case_id.split("-")[2] if "-" in case_id else "hero",
             runtime=self.detect_runtime(),
             agent_framework="Google ADK",
+            agent_name="astra_investigation_planner",
             model_provider="Google",
             model=self.model,
             execution_boundary="ASTRA Restricted DSL",
@@ -401,16 +410,18 @@ class ASTRAInvestigationAgent:
             proposals_rejected=proposals_rejected,
             executed_operations=executed_ops,
             competing_hypotheses=[
-                {"id": h.id, "name": h.name, "score": h.evidence_score, "status": h.status.value}
+                {"id": h.id, "name": h.name, "score": round(float(h.evidence_score), 3), "status": h.status.value}
                 for h in pool.get_ranked_hypotheses()
             ],
             stop_reason=stop_reason,
             decision=decision_outcome.decision,
-            decision_reliability_score=decision_outcome.decision_reliability_score,
+            decision_reliability_score=round(float(decision_outcome.decision_reliability_score), 3),
             primary_reason=decision_outcome.primary_reason,
             counterfactuals=[
                 {"target_decision": cf.target_decision.value, "condition": cf.condition}
                 for cf in counterfactuals
             ],
             provenance_records=provenance_log,
+            series_preview=preview_data,
+            duration_ms=duration_ms,
         )

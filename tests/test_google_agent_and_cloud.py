@@ -196,6 +196,31 @@ class GoogleAgentAndCloudTests(unittest.TestCase):
                 ASTRAInvestigationAgent(mode="hackathon", model="gemini-3.5-flash-lite")
             self.assertIn("requires active Google credentials", str(ctx.exception))
 
+    def test_fastapi_root_ui_and_status_endpoints(self):
+        """Cloud API: GET / serves Investigation UI, /favicon.ico returns 204, and /api/status returns metadata."""
+        client = TestClient(app)
+        
+        # Root UI
+        res_root = client.get("/")
+        self.assertEqual(res_root.status_code, 200)
+        self.assertIn("text/html", res_root.headers.get("content-type", ""))
+        self.assertIn("ASTRA v0.4.1", res_root.text)
+        self.assertIn("Investigation Timeline", res_root.text)
+
+        # Favicon
+        res_fav = client.get("/favicon.ico")
+        self.assertEqual(res_fav.status_code, 204)
+
+        # API Status
+        res_st = client.get("/api/status")
+        self.assertEqual(res_st.status_code, 200)
+        st_data = res_st.json()
+        self.assertEqual(st_data["service"], "ASTRA")
+        self.assertEqual(st_data["version"], "0.4.1")
+        self.assertEqual(st_data["agent_framework"], "Google ADK")
+        self.assertEqual(st_data["model_provider"], "Google")
+        self.assertEqual(st_data["status"], "online")
+
 
 if __name__ == "__main__":
     unittest.main()
