@@ -1,9 +1,6 @@
-from .pool import (
-    HypothesisPool,
-    create_standard_hypothesis_pool,
-)
+from .pool import CompetingHypothesisPool, HypothesisPool
 
 __all__ = [
+    "CompetingHypothesisPool",
     "HypothesisPool",
-    "create_standard_hypothesis_pool",
 ]

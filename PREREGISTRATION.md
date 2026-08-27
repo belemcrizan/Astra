@@ -1,29 +1,28 @@
-# Methodological Preregistration — ASTRA v0.3
+# Methodological Preregistration — ASTRA v0.4
 
-This document formalizes the scientific experimental rules and detection thresholds prior to benchmark evaluation. The executable definition is maintained in `src/astra_poc/preregistration.py`, and every generated report embeds the canonical SHA-256 hash of this configuration.
+This document formalizes the scientific experimental rules, decision science parameters, and detection thresholds for ASTRA v0.4 prior to benchmark execution. The executable definition is maintained in `src/astra_poc/preregistration.py`, and every generated report embeds the canonical SHA-256 hash of this configuration.
 
 ---
 
-## 1. Primary Hypotheses
+## 1. Primary Hypotheses & Open-Set Representation
 
-- **H1 (Transient Statistical Fluctuation):** The observed anomaly is a transient sampling outlier with no structural or volatility change.
-- **H2 (Gradual Regime Change):** The series exhibits a persistent transition in mean return or volatility structure.
+- **H1 (Transient Statistical Fluctuation):** The observed anomaly is an isolated random noise outlier with no structural or volatility change.
+- **H2 (Gradual Regime Change):** The series exhibits a persistent transition in mean return or variance clustering.
 - **H3 (Abrupt Structural Break):** A sharp, discrete change-point occurred in the underlying distribution parameters.
 - **H4 (Coordinated Weak Signal):** Events precede a structured, repeated weak response waveform detectable via temporal alignment.
-- **H_unknown (Unmodeled Anomaly):** Residual dynamics not adequately modeled by existing parametric representations.
+- **H_unknown (Unmodeled Exogenous Dynamics):** Non-parametric or heavy-tailed dynamics outside standard Gaussian/autoregressive models.
 
 ---
 
-## 2. Frozen Evaluation Parameters
+## 2. Decision Science & Utility Parameters
 
-- **Change-point Matching:** One-to-one order-preserving matching via dynamic programming (`one_to_one_minimum_absolute_delay`).
-- **Temporal Tolerance Window:** 3.5% of series length with a minimum threshold of 20 points.
-- **Anomaly Detection Tolerance:** 2 discrete time steps.
-- **Proportion Intervals:** Exact Wilson 95% confidence intervals.
-- **Signal Detection Gate:** Robust Z-score $|z| \ge 7.0$ using median absolute deviation scaling ($1.4826 \times \text{MAD}$).
-- **Regime Score Threshold:** Window size 100, score threshold 0.75, minimum separation 240 points.
-- **Temporal Null Stacking (H4):** 999 circular time-shift permutations, one-sided upper tail, $\alpha = 0.01$.
-- **Detection Baselines:** CUSUM, Page-Hinkley, Gaussian PELT, and BOCPD with frozen parameters.
+- **Adaptive Utility Function:**
+  $$U(a) = \alpha \cdot \text{EIG}(a) + \beta \cdot \text{EFG}(a) + \gamma \cdot \text{EDR}(a) - \lambda_c C(a) - \lambda_r R(a)$$
+  with preregistered weights: $\alpha = 1.2$, $\beta = 1.5$, $\gamma = 1.0$, $\lambda_c = 0.35$, $\lambda_r = 0.20$.
+- **Value of Information (VoI) Threshold:** $0.05$ (testing stops when $\text{VoI} \le 0.05$ after minimum 2 tests).
+- **Open-Set Threshold:** $0.60$ (refuses forced classification when $H_{\text{unknown}} \ge 0.60$).
+- **Selective Autonomy Threshold ($\tau$):** $0.65$ (defers to human review if decision confidence $< 0.65$).
+- **Consequence Cost Assumptions:** False Close $= 10.0$, False Watch $= 3.0$, Unnecessary Escalate $= 2.0$, Unnecessary Defer $= 1.5$.
 - **Investigation Budget Limits:** Maximum 5 steps, maximum 6 tests, maximum 10.0 cost units.
 
 ---

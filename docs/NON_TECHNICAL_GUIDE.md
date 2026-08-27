@@ -1,65 +1,50 @@
-# Understanding ASTRA v0.3 — Non-Technical Guide
+# Understanding ASTRA v0.4 — Non-Technical Guide
 
 ---
 
-## 1. The Smoke Detector Analogy
+## 1. Beyond the Smoke Detector: Rational Investigation Control
 
-Think of traditional anomaly detection like a household smoke detector:
-- When a smoke detector beeps, it only tells you: *"Something unusual is in the air."*
-- It cannot tell you whether the smoke came from burnt toast, steam from a hot shower, or an actual house fire.
-- If the detector triggered an automatic fire truck response for every beep, the fire department would be overwhelmed with false alarms.
+Most monitoring tools behave like simple smoke detectors: they beep whenever something looks abnormal, but they cannot tell you whether the smoke is from cooking steam, a small candle, or a real fire. As a result, operators face **alert fatigue**—having to manually investigate thousands of false alarms every day.
 
-**ASTRA is not just a smoke detector.** 
+**ASTRA is not just a smoke detector; it is an intelligent investigator.**
 
-When ASTRA detects an unusual event, it acts as an **autonomous investigator**:
-1. It opens an investigation case file.
-2. It considers several competing explanations (*"Is this routine kitchen steam, an electrical short-circuit, or a real fire?"*).
-3. It selectively performs tests designed to **disprove** candidate explanations (*"If this were steam, humidity would be high and CO2 would be zero"*).
-4. Based on the evidence, it updates its confidence and decides whether to **Close the alert**, **Watch the situation**, or **Escalate to a human operator**.
-
----
-
-## 2. Why Competing Hypotheses Matter
-
-Most automated systems jump directly from an anomaly to an assumption. ASTRA explicitly maintains multiple competing theories:
-- **H1 (Transient Fluctuation)**: *"Just random noise; nothing fundamental changed."*
-- **H2 (Gradual Regime Change)**: *"The system slowly shifted into a higher-volatility state."*
-- **H3 (Abrupt Structural Break)**: *"A sharp, sudden shock occurred at this specific moment."*
-- **H4 (Coordinated Weak Signal)**: *"A subtle, repeated pattern preceded the movement."*
-- **H_unknown**: *"An external factor not modeled by standard rules."*
-
-By forcing these hypotheses to compete against each other, ASTRA prevents confirmation bias.
+When an unusual signal occurs, ASTRA:
+1. **Opens a case file** with a strict resource and cost budget.
+2. **Posits multiple competing explanations** (*"Is this random noise, a gradual market drift, an abrupt shock, or an unmodeled external event?"*).
+3. **Decides what to test next using Value of Information (VoI)**: It calculates whether running a diagnostic test will actually help make a better decision or if it would just waste computational resources.
+4. **Actively attempts to disprove candidate explanations**: If a test disproves its initial theory, ASTRA changes its mind.
+5. **Knows when to stop**: When additional tests will not change the decision or cost more than their value, ASTRA stops testing.
+6. **Explains its reasoning and counterfactuals**: It tells analysts not only what it decided, but *what would have caused it to make a different decision*.
 
 ---
 
-## 3. Why Falsification Matters
+## 2. Why Value of Information (VoI) Matters
 
-In science, you do not prove a theory by looking only for things that support it; you test it by trying to disprove it.
+Imagine a doctor who orders 20 expensive lab tests for every patient with a mild cough. That doctor would bankrupt the clinic and delay care for critical patients.
 
-ASTRA adopts a **falsification-first** philosophy:
-- When a signal appears, the first hypothesis is often *"this is just noise"* ($H_1$).
-- ASTRA immediately asks: *"What test would prove this is NOT just noise?"*
-- If the test proves there is a real structural shift, ASTRA **rejects $H_1$ and changes its mind**.
-- If the test shows nothing structural, $H_1$ survives, and the alert is **Closed without human intervention**, preventing alert fatigue.
+A skilled doctor only orders a test if **the result could actually change the treatment plan**.
 
----
-
-## 4. What Are the Resource Bounds?
-
-Autonomous systems must never run infinitely or burn unlimited computing power. ASTRA enforces hard mathematical budgets:
-- Maximum 5 investigation steps per case.
-- Maximum 6 diagnostic tests.
-- Maximum 10 cost units of computation.
-
-If the budget runs out while evidence remains ambiguous, ASTRA stops and flags the event as `DEFER` or `REQUEST_HUMAN_REVIEW`, explaining exactly what was tested and what remains uncertain.
+ASTRA does the same:
+- If running another statistical test costs \$0.50 in compute but will not change the final decision between closing or watching, ASTRA **stops testing** and saves resources.
+- If an anomaly is genuinely high-stakes and ambiguous, ASTRA invests the budget to gather conclusive evidence.
 
 ---
 
-## 5. What ASTRA Is (and Is Not)
+## 3. The Power of Saying *"I Don't Know"* ($H_{\text{unknown}}$)
+
+Traditional AI tools often force every input into predefined categories—even when presented with completely novel, chaotic data. This leads to dangerous hallucinations and false confidence.
+
+ASTRA includes an explicit **Open-Set ($H_{\text{unknown}}$) capability**:
+- When incoming data is completely incompatible with all known models, ASTRA increases its unknown score and **refuses forced classification**.
+- It safely routes the event as `DEFER` or `REQUEST_HUMAN_REVIEW` with an explanation: *"Unmodeled dynamics detected; human review recommended."*
+
+---
+
+## 4. Summary: What ASTRA Is (and Is Not)
 
 | ASTRA Is | ASTRA Is Not |
 |---|---|
-| A research **Proof of Concept (POC)** demonstrating evidence-driven investigation. | A production-ready commercial platform. |
-| A disciplined scientific kernel with 95% Wilson confidence intervals. | A certified anti-money-laundering (AML) compliance tool. |
-| A safe sandbox where AI models can only request approved statistical tests. | An unconstrained autonomous bot that executes financial trades or external actions. |
-| A system that strictly separates controlled synthetic benchmarks from real data. | A marketing claim of 100% real-world accuracy. |
+| A research **Proof of Concept (POC)** demonstrating rational investigation control. | A production trading or investment execution system. |
+| A disciplined scientific kernel with 95% Wilson confidence intervals. | A certified anti-money-laundering (AML) enforcement platform. |
+| A safe sandbox where AI planners can only request approved statistical tests. | An unconstrained autonomous agent that takes real-world actions. |
+| An auditable engine with cryptographic SHA-256 integrity chains. | A black-box neural network with unexplainable outputs. |

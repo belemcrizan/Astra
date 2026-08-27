@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 
 
 # ---------------------------------------------------------------------------
-# Legacy & Shared Enums (backward compatible)
+# Core Enums
 # ---------------------------------------------------------------------------
 
 class AgentStatus(StrEnum):
@@ -24,10 +24,6 @@ class Decision(StrEnum):
     INSUFFICIENT_EVIDENCE = "insufficient_evidence"
     BLOCKED = "blocked"
 
-
-# ---------------------------------------------------------------------------
-# Investigation State Machine Enums & Contracts (v0.3)
-# ---------------------------------------------------------------------------
 
 class InvestigationState(StrEnum):
     OBSERVING = "OBSERVING"
@@ -63,6 +59,21 @@ class DecisionReasonCode(StrEnum):
     BENIGN_FLUCTUATION_SURVIVED = "BENIGN_FLUCTUATION_SURVIVED"
     TEST_FAILURE_DEGRADATION = "TEST_FAILURE_DEGRADATION"
     UNAUTHORIZED_ACTION_BLOCKED = "UNAUTHORIZED_ACTION_BLOCKED"
+    UNKNOWN_REGIME_DOMINANT = "UNKNOWN_REGIME_DOMINANT"
+    VOI_EXHAUSTION = "VOI_EXHAUSTION"
+
+
+class StopReason(StrEnum):
+    DECISION_SUFFICIENT = "DECISION_SUFFICIENT"
+    INFORMATION_EXHAUSTED = "INFORMATION_EXHAUSTED"
+    EXPECTED_VOI_NON_POSITIVE = "EXPECTED_VOI_NON_POSITIVE"
+    BUDGET_EXHAUSTED = "BUDGET_EXHAUSTED"
+    TIME_BUDGET_EXHAUSTED = "TIME_BUDGET_EXHAUSTED"
+    HYPOTHESES_INDISTINGUISHABLE = "HYPOTHESES_INDISTINGUISHABLE"
+    UNKNOWN_DOMINANT = "UNKNOWN_DOMINANT"
+    HUMAN_REQUIRED = "HUMAN_REQUIRED"
+    SAFETY_BOUNDARY = "SAFETY_BOUNDARY"
+    NO_VALID_ACTION = "NO_VALID_ACTION"
 
 
 class HypothesisStatus(StrEnum):
@@ -86,10 +97,11 @@ class DSLOperationName(StrEnum):
     REQUEST_FEATURE = "REQUEST_FEATURE"
     EVALUATE_HYPOTHESIS = "EVALUATE_HYPOTHESIS"
     RECOMMEND_DECISION = "RECOMMEND_DECISION"
+    ASK_HUMAN = "ASK_HUMAN"
 
 
 # ---------------------------------------------------------------------------
-# Core Atomic Structures
+# Atomic Evidence & Decision Models
 # ---------------------------------------------------------------------------
 
 class Evidence(BaseModel):
@@ -110,8 +122,11 @@ class EvidenceItem(BaseModel):
     hypotheses_discriminated: list[str] = Field(default_factory=list)
     why_selected: str | None = None
     expected_information_value: float = Field(default=0.5, ge=0.0, le=1.0)
+    expected_falsification_gain: float = Field(default=0.5, ge=0.0, le=1.0)
+    expected_decision_relevance: float = Field(default=0.5, ge=0.0, le=1.0)
     cost_units: float = Field(default=1.0, ge=0.0)
     latency_ms: float = Field(default=0.0, ge=0.0)
+    provenance_source: str = "deterministic_dsl_sandbox"
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
@@ -139,7 +154,7 @@ class Hypothesis(BaseModel):
 class InvestigationHypothesis(BaseModel):
     id: str
     name: str
-    claim: str
+    claim: str = ""
     prior_evidence_score: float = Field(default=0.5, ge=0.0, le=1.0)
     evidence_score: float = Field(default=0.5, ge=0.0, le=1.0, description="Uncalibrated heuristic evidence score (not a probability).")
     status: HypothesisStatus = HypothesisStatus.ACTIVE
@@ -151,8 +166,22 @@ class InvestigationHypothesis(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# DSL & Execution Models
+# Decision Utility & Value of Information (VoI) Models
 # ---------------------------------------------------------------------------
+
+class ActionUtilityEstimate(BaseModel):
+    action: DSLOperationName
+    expected_info_gain: float = 0.0
+    expected_falsification_gain: float = 0.0
+    expected_decision_gain: float = 0.0
+    cost: float = 1.0
+    latency_ms: float = 10.0
+    risk_penalty: float = 0.0
+    net_utility: float = 0.0
+    voi: float = 0.0
+    selected: bool = False
+    reasoning: str = ""
+
 
 class DSLOperation(BaseModel):
     op_name: DSLOperationName
@@ -160,6 +189,8 @@ class DSLOperation(BaseModel):
     target_hypotheses: list[str] = Field(default_factory=list)
     cost_units: float = Field(default=1.0, ge=0.0)
     expected_info_value: float = Field(default=0.5, ge=0.0, le=1.0)
+    expected_falsification_gain: float = Field(default=0.5, ge=0.0, le=1.0)
+    expected_decision_gain: float = Field(default=0.5, ge=0.0, le=1.0)
     reasoning: str = ""
 
 
@@ -203,8 +234,15 @@ class StateTransitionRecord(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Decision & Governance Models
+# Decision, Governance & Counterfactuals
 # ---------------------------------------------------------------------------
+
+class CounterfactualStatement(BaseModel):
+    target_decision: InvestigationDecision
+    condition: str
+    minimal_evidence_delta: str
+    hypothetical_reason_code: DecisionReasonCode
+
 
 class GovernanceResult(BaseModel):
     decision: Decision
@@ -222,6 +260,7 @@ class DecisionOutcome(BaseModel):
     decision: InvestigationDecision
     reason_codes: list[DecisionReasonCode] = Field(default_factory=list)
     primary_reason: str
+    stop_reason: StopReason = StopReason.DECISION_SUFFICIENT
     human_review_required: bool = False
     prohibited_actions: list[str] = Field(default_factory=lambda: [
         "execute financial orders",
@@ -231,62 +270,96 @@ class DecisionOutcome(BaseModel):
     ])
     accepted_hypothesis_id: str | None = None
     residual_uncertainty: float = Field(default=0.0, ge=0.0, le=1.0)
+    decision_confidence: float = Field(default=0.85, ge=0.0, le=1.0)
+    selective_decision_approved: bool = True
 
 
 # ---------------------------------------------------------------------------
-# Observability / Telemetry Models
+# Provenance Graph & Tamper-Evident Integrity
 # ---------------------------------------------------------------------------
 
-class TelemetrySpan(BaseModel):
-    trace_id: str
-    investigation_id: str
-    event_id: str
+class DecisionProvenanceNode(BaseModel):
+    id: str
+    type: str  # observation, hypothesis, action, evidence, falsification, state_transition, decision
+    label: str
     timestamp: str
-    state: str
-    component: str
-    action: str
-    hypothesis_id: str | None = None
-    evidence_id: str | None = None
-    decision: str | None = None
-    reason_code: str | None = None
-    latency_ms: float = 0.0
-    cost_units: float = 0.0
-    details: dict[str, Any] = Field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class DecisionProvenanceEdge(BaseModel):
+    source: str
+    target: str
+    relation: str  # generated, supports, contradicts, selected_because, caused_transition, falsified, triggered
+
+
+class DecisionProvenanceGraphData(BaseModel):
+    nodes: list[DecisionProvenanceNode] = Field(default_factory=list)
+    edges: list[DecisionProvenanceEdge] = Field(default_factory=list)
+    mermaid_diagram: str = ""
+
+
+class IntegrityChainRecord(BaseModel):
+    step_index: int
+    event_hash: str
+    previous_hash: str
+    payload_summary: str
+    timestamp: str
+
+
+class MultimodalEvidenceClaim(BaseModel):
+    claim_id: str = Field(default_factory=lambda: f"claim-{uuid4().hex[:8]}")
+    source_file: str
+    source_hash: str
+    extracted_statement: str
+    claimed_timestamp: int | None = None
+    claimed_feature: str = "regime_change"
+    verification_status: str = "unverified"  # unverified, verified_consistent, verified_contradicted, inconclusive
+    cross_check_evidence_id: str | None = None
 
 
 # ---------------------------------------------------------------------------
-# Complete Investigation Report (v0.3)
+# Complete Investigation Report (v0.4)
 # ---------------------------------------------------------------------------
 
 class InvestigationReport(BaseModel):
     run_id: str = Field(default_factory=lambda: str(uuid4()))
     correlation_id: str
     investigation_id: str = Field(default_factory=lambda: f"inv-{uuid4().hex[:8]}")
+    case_id: str = Field(default_factory=lambda: f"case-{uuid4().hex[:8]}")
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     dataset_version: str
-    model_version: str = "astra-poc-0.3.0"
+    model_version: str = "astra-poc-0.4.0"
     methodology_version: str
     preregistration_sha256: str
     seed: int
-    execution_track: str = "Track A (Controlled Synthetic)"  # or "Track B (Real Dataset)"
+    execution_track: str = "Track A (Controlled Synthetic)"
     
-    # State & Hypotheses
+    # State, Hypotheses & Open-Set
     initial_state: InvestigationState = InvestigationState.OBSERVING
     final_state: InvestigationState = InvestigationState.CLOSED
+    stop_reason: StopReason = StopReason.DECISION_SUFFICIENT
     state_history: list[StateTransitionRecord] = Field(default_factory=list)
     hypotheses: list[Hypothesis] = Field(default_factory=list)
     competing_hypotheses: list[InvestigationHypothesis] = Field(default_factory=list)
+    unknown_score: float = Field(default=0.20, ge=0.0, le=1.0)
     
-    # Evidence & Execution
+    # Decision Science & VoI
+    action_utility_history: list[list[ActionUtilityEstimate]] = Field(default_factory=list)
     evidence_log: list[EvidenceItem] = Field(default_factory=list)
     dsl_plan: list[DSLOperation] = Field(default_factory=list)
     dsl_results: list[DSLResult] = Field(default_factory=list)
     budget: InvestigationBudget = Field(default_factory=InvestigationBudget)
     
-    # Decisions & Governance
+    # Decisions & Counterfactuals
     decision_outcome: DecisionOutcome | None = None
+    counterfactuals: list[CounterfactualStatement] = Field(default_factory=list)
     governance: GovernanceResult
     agents: list[AgentResult] = Field(default_factory=list)
+    
+    # Provenance Graph & Integrity
+    provenance_graph: DecisionProvenanceGraphData | None = None
+    integrity_chain: list[IntegrityChainRecord] = Field(default_factory=list)
+    multimodal_claims: list[MultimodalEvidenceClaim] = Field(default_factory=list)
     
     # Metrics & Scientific Evaluations
     metrics: dict[str, Any] = Field(default_factory=dict)
@@ -301,4 +374,5 @@ class InvestigationReport(BaseModel):
         "ASTRA is a proof of concept; no automated external intervention is permitted.",
         "Wilson confidence intervals reflect finite sample bounds within the tested model.",
         "Temporal null stacking supports association testing under circular shift, not causal identification.",
+        "Value of Information (VoI) calculations rely on declared decision cost models and heuristic gain approximations.",
     ])

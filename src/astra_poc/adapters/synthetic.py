@@ -24,6 +24,9 @@ class SyntheticMarketAdapter(DatasetAdapter):
             )
         return self._cached_data
 
+    def generate(self, points: int = 2400, seed: int = 42, signal_amplitude: float = 0.010) -> SyntheticMarket:
+        return generate_synthetic_market(points=points, seed=seed, signal_amplitude=signal_amplitude)
+
     @property
     def name(self) -> str:
         return "Synthetic Market v2"
