@@ -103,48 +103,72 @@ pip install -e .
 # 1. Audit mandatory hackathon eligibility stack
 python -m astra_poc eligibility-check
 
-# 2. Run live Google ADK + Gemini 3.5+ agent investigation demo
-python -m astra_poc google-agent-demo
+# 2. Run live Google ADK + Gemini 3.5+ agent demo (with optional repeatability test)
+python -m astra_poc google-agent-demo --repeat 3
 
-# 3. Run live hackathon judge demonstration (<2 seconds)
+# 3. Run all acceptance gate checks
+python -m astra_poc final-check
+
+# 4. Verify architectural claims vs implementation artifacts
+python -m astra_poc claims-check
+
+# 5. Run live hackathon judge demonstration (<2 seconds)
 python -m astra_poc judge-demo --explain-policy
 
-# 4. Run hero scenario (hypothesis trap, falsification, and change of mind)
+# 6. Run hero scenario (hypothesis trap, falsification, and change of mind)
 python -m astra_poc hero-demo
 
-# 5. Run control scenario (benign noise safe closure)
+# 7. Run control scenario (benign noise safe closure)
 python -m astra_poc control-demo
 
-# 6. Run open-set unknown regime demo (refusing forced classification)
+# 8. Run open-set unknown regime demo (refusing forced classification)
 python -m astra_poc unknown-demo
 
-# 7. Run budget adaptation demo (Low vs Med vs High budget comparison)
+# 9. Run budget adaptation demo (Low vs Med vs High budget comparison)
 python -m astra_poc budget-demo
 
-# 8. Compute Quality-Cost Pareto Frontier across investigation policies
+# 10. Compute Quality-Cost Pareto Frontier across investigation policies
 python -m astra_poc pareto-frontier
 
-# 9. Run full automated test suite (75 tests passing)
+# 11. Run full automated test suite (77 tests passing)
 python -m unittest discover -s tests -v
 ```
 
 ---
 
-## 4. Experimental Results & Quality-Cost Pareto Frontier
+## 4. Interactive Investigation UI
+
+ASTRA includes a lightweight, self-contained **Investigation UI** served directly by the FastAPI backend on `GET /`.
+
+```text
+Open Cloud Run Service URL / Root -> Interactive Investigation Workspace
+```
+
+Features:
+- **Live Google Stack Indicators:** Real-time badges displaying active runtime (Google Cloud Run vs local), Google ADK version, and Gemini 3.5+ model identifier.
+- **Observed Signal Canvas:** Interactive time-series return stream with trigger indicator at $t=600$.
+- **Competing Hypotheses Cards:** Real-time evidence score progress bars and status indicators ($H_1 \dots H_4, H_{\text{unknown}}$).
+- **Turn-by-Turn Timeline:** Step-by-step display of Gemini diagnostic proposals, ASTRA Restricted DSL validation badges, and measured statistical evidence.
+- **Final Decision & Counterfactuals:** Prominent decision panel (`ESCALATE`, `CLOSE`, `WATCH`, `DEFER`) with operational reliability scores and counterfactual boundary rules.
+- **Cryptographic Audit Trail:** 1-click trace ID copying and expandable complete JSON payload.
+
+---
+
+## 5. Experimental Results & Quality-Cost Pareto Frontier
 
 ### Quality–Cost Pareto Frontier (15 Seeds per Policy across Benchmark Scenario Families)
 
 | Investigation Policy | Resolution Accuracy | Mean Cost | P95 Latency | Pareto Efficient |
 |---|---:|---:|---:|:---:|
-| **Fixed-Sequence Baseline** | 46.7% | 1.20u | 228.7 ms | **YES (Low Cost Boundary)** |
-| **ASTRA Full (Adaptive VoI)** | **66.7%** | **1.80u** | **208.8 ms** | **YES (Dominates Accuracy)** |
-| **Falsification-Only** | 66.7% | 2.27u | 331.8 ms | No (Dominated by ASTRA) |
+| **Fixed-Sequence Baseline** | 46.7% | 1.20u | 203.4 ms | **YES (Low Cost Boundary)** |
+| **ASTRA Full (Adaptive VoI)** | **66.7%** | **1.80u** | **210.1 ms** | **YES (Optimal / Dominates Accuracy)** |
+| **Falsification-Only** | 66.7% | 2.27u | 307.4 ms | No (Dominated by ASTRA) |
 
-*Finding: ASTRA's adaptive VoI policy matches the peak 66.7% resolution accuracy of unconstrained falsification while saving **20.7% compute cost** and reducing P95 latency from 331.8 ms to 208.8 ms.*
+*Finding: ASTRA's adaptive VoI policy matches the peak 66.7% resolution accuracy of unconstrained falsification while saving **20.7% compute cost** and reducing P95 latency from 307.4 ms to 210.1 ms.*
 
 ---
 
-## 5. Google Cloud Run Deployment
+## 6. Google Cloud Run Deployment
 
 ASTRA is fully containerized and deployable to Google Cloud Run with a single command:
 
@@ -157,20 +181,22 @@ ASTRA is fully containerized and deployable to Google Cloud Run with a single co
 
 ```bash
 # Verify live Cloud Run service endpoint
-python -m astra_poc cloud-verify --url https://astra-poc-XXXX-uc.a.run.app
+python -m astra_poc cloud-verify --url https://astra-investigation-service-XXXX-uc.a.run.app
 ```
 
 ---
 
-## 6. Complete Documentation Index
+## 7. Complete Documentation Index
 
+- [Google Hackathon Deployment Guide](docs/HACKATHON_DEPLOYMENT_GUIDE.md)
+- [Final Runtime Hardening & Defect Matrix](docs/FINAL_HARDENING.md)
 - [Google Agent Architecture & Design](docs/GOOGLE_AGENT_ARCHITECTURE.md)
 - [Hackathon Eligibility Compliance Matrix](docs/HACKATHON_ELIGIBILITY.md)
 - [Devpost Submission Content](docs/DEVPOST_UPDATE.md)
 - [Video Demonstration Script (3:30)](docs/DEMO_SCRIPT.md)
+- [Claims & Evidence Alignment Matrix](docs/CLAIMS_AND_EVIDENCE.md)
 - [Corrective Validation & Root Cause Analysis](docs/V04_1_CORRECTIVE_VALIDATION.md)
 - [Negative Results & Disproven Architectures](docs/NEGATIVE_RESULTS.md)
-- [Claims & Evidence Alignment Matrix](docs/CLAIMS_AND_EVIDENCE.md)
 - [Dataset Cards (Track A & B + 10 Families)](docs/DATASET_CARD.md)
 - [STRIDE Threat Model & Security Boundaries](docs/THREAT_MODEL_STRIDE.md)
 - [Scientific Preregistration v0.4.1](PREREGISTRATION.md)
@@ -178,8 +204,8 @@ python -m astra_poc cloud-verify --url https://astra-poc-XXXX-uc.a.run.app
 
 ---
 
-## 7. Limitations & Epistemic Honesty
+## 8. Limitations & Epistemic Honesty
 
 1. **Synthetic vs Real**: Synthetic benchmark results establish statistical sanity under controlled generative assumptions, not external real-world accuracy.
-2. **Heuristic Scoring**: `evidence_score` is an operational ranking metric, not a calibrated probability.
-3. **Bounded Scope**: ASTRA is a research POC. It provides decision support and audit trails; it does not replace human domain expertise or execute production interventions.
+2. **Operational Reliability Score**: `evidence_score` and `decision_reliability_score` are operational decision-support rankings used by ASTRA's policy, not calibrated posterior probabilities or Bayesian credible intervals.
+3. **Bounded Scope**: ASTRA is a research POC. It provides decision support and audit trails; it does not replace human domain expertise or execute production financial interventions.

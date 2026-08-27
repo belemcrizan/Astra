@@ -24,6 +24,7 @@ class InvestigationProposal(BaseModel):
 
 class AgentExecutionProvenance(BaseModel):
     """Cryptographic audit record of Google ADK / Gemini proposal and ASTRA execution."""
+    turn: int = Field(default=1, description="Investigation turn index.")
     agent_framework: str = Field(default="Google ADK", description="Google Agent Framework used.")
     model_provider: str = Field(default="Google", description="Underlying Foundation Model Provider.")
     model: str = Field(description="Exact Gemini model identifier used.")
@@ -40,8 +41,10 @@ class GoogleAgentReport(BaseModel):
     """End-to-end investigation result package generated with Google ADK / Gemini."""
     case_id: str
     trace_id: str
+    scenario_name: str = "hero"
     runtime: str = Field(description="Execution runtime environment ('Google Cloud Run' or 'local').")
     agent_framework: str = "Google ADK"
+    agent_name: str = "astra_investigation_planner"
     model_provider: str = "Google"
     model: str
     execution_boundary: str = "ASTRA Restricted DSL"
@@ -57,3 +60,5 @@ class GoogleAgentReport(BaseModel):
     primary_reason: str
     counterfactuals: list[dict[str, Any]] = Field(default_factory=list)
     provenance_records: list[AgentExecutionProvenance] = Field(default_factory=list)
+    series_preview: list[float] = Field(default_factory=list)
+    duration_ms: float = 0.0
