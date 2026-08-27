@@ -1,4 +1,4 @@
-# ASTRA v0.4.1 — Autonomous Evidence-Driven Investigation Engine
+# ASTRA v0.4.2 — Autonomous Evidence-Driven Investigation Engine
 
 > **ASTRA** turns anomaly alerts into bounded, evidence-backed investigations. Instead of escalating every unusual signal or guessing blindly, ASTRA uses **Google ADK** and **Gemini 3.5+** for intelligent investigation planning, while enforcing a **Restricted DSL deterministic execution boundary** that executes statistical algorithms, updates competing hypotheses, evaluates Value of Information (VoI), and deploys seamlessly on **Google Cloud Run**.
 
@@ -46,6 +46,7 @@ flowchart TD
         BASE --> EV["Verified Evidence Items"]
         EV --> POOL["Competing Hypotheses Pool\n(H1..H4, H_unknown)"]
         POOL --> VOI["Value of Information (VoI) Engine\n(EIG, EFG, EDR, Cost, Recoverability)"]
+        POOL --> DELTA["Hypothesis Belief Delta Accounting\n(Before -> After -> Shift)"]
         VOI --> STOP["Stopping Policy\n(Decision Sufficiency Hierarchy)"]
     end
 
@@ -103,34 +104,37 @@ pip install -e .
 # 1. Audit mandatory hackathon eligibility stack
 python -m astra_poc eligibility-check
 
-# 2. Run live Google ADK + Gemini 3.5+ agent demo (with optional repeatability test)
-python -m astra_poc google-agent-demo --repeat 3
+# 2. Run live Google ADK + Gemini 3.5+ agent demo
+python -m astra_poc google-agent-demo
 
-# 3. Run all acceptance gate checks
+# 3. Run multi-run repeatability harness across canonical scenarios
+python -m astra_poc repeatability --runs 10
+
+# 4. Run all acceptance gate checks
 python -m astra_poc final-check
 
-# 4. Verify architectural claims vs implementation artifacts
+# 5. Verify architectural claims vs implementation artifacts
 python -m astra_poc claims-check
 
-# 5. Run live hackathon judge demonstration (<2 seconds)
+# 6. Run live hackathon judge demonstration (<2 seconds)
 python -m astra_poc judge-demo --explain-policy
 
-# 6. Run hero scenario (hypothesis trap, falsification, and change of mind)
+# 7. Run hero scenario (hypothesis trap, falsification, and change of mind)
 python -m astra_poc hero-demo
 
-# 7. Run control scenario (benign noise safe closure)
+# 8. Run control scenario (benign noise safe closure)
 python -m astra_poc control-demo
 
-# 8. Run open-set unknown regime demo (refusing forced classification)
+# 9. Run open-set unknown regime demo (refusing forced classification)
 python -m astra_poc unknown-demo
 
-# 9. Run budget adaptation demo (Low vs Med vs High budget comparison)
+# 10. Run budget adaptation demo (Low vs Med vs High budget comparison)
 python -m astra_poc budget-demo
 
-# 10. Compute Quality-Cost Pareto Frontier across investigation policies
+# 11. Compute Quality-Cost Pareto Frontier across investigation policies
 python -m astra_poc pareto-frontier
 
-# 11. Run full automated test suite (77 tests passing)
+# 12. Run full automated test suite (82 tests passing)
 python -m unittest discover -s tests -v
 ```
 
@@ -147,9 +151,10 @@ Open Cloud Run Service URL / Root -> Interactive Investigation Workspace
 Features:
 - **Live Google Stack Indicators:** Real-time badges displaying active runtime (Google Cloud Run vs local), Google ADK version, and Gemini 3.5+ model identifier.
 - **Observed Signal Canvas:** Interactive time-series return stream with trigger indicator at $t=600$.
-- **Competing Hypotheses Cards:** Real-time evidence score progress bars and status indicators ($H_1 \dots H_4, H_{\text{unknown}}$).
-- **Turn-by-Turn Timeline:** Step-by-step display of Gemini diagnostic proposals, ASTRA Restricted DSL validation badges, and measured statistical evidence.
-- **Final Decision & Counterfactuals:** Prominent decision panel (`ESCALATE`, `CLOSE`, `WATCH`, `DEFER`) with operational reliability scores and counterfactual boundary rules.
+- **Competing Hypotheses Race:** Real-time evidence score progress bars, status indicators, and $\Delta$ change tags ($H_1 \dots H_4, H_{\text{unknown}}$).
+- **Turn-by-Turn Timeline:** Step-by-step display of Gemini diagnostic proposals, ASTRA Restricted DSL validation badges, measured statistical evidence, and hypothesis delta shifts.
+- **Why This Test? (VoI Utility Panel):** Live ranking of candidate diagnostic operations by Expected Information Gain, Falsification Gain, Decision Relevance, Cost, and Net VoI.
+- **Executive Decision Card & Counterfactuals:** Prominent decision panel (`ESCALATE`, `CLOSE`, `WATCH`, `DEFER`) with operational reliability scores and counterfactual boundary rules.
 - **Cryptographic Audit Trail:** 1-click trace ID copying and expandable complete JSON payload.
 
 ---
@@ -160,11 +165,11 @@ Features:
 
 | Investigation Policy | Resolution Accuracy | Mean Cost | P95 Latency | Pareto Efficient |
 |---|---:|---:|---:|:---:|
-| **Fixed-Sequence Baseline** | 46.7% | 1.20u | 203.4 ms | **YES (Low Cost Boundary)** |
-| **ASTRA Full (Adaptive VoI)** | **66.7%** | **1.80u** | **210.1 ms** | **YES (Optimal / Dominates Accuracy)** |
-| **Falsification-Only** | 66.7% | 2.27u | 307.4 ms | No (Dominated by ASTRA) |
+| **Fixed-Sequence Baseline** | 46.7% | 1.20u | 460.1 ms | **YES (Low Cost Boundary)** |
+| **ASTRA Full (Adaptive VoI)** | **66.7%** | **1.80u** | **504.3 ms** | **YES (Optimal / Dominates Accuracy)** |
+| **Falsification-Only** | 66.7% | 2.27u | 738.0 ms | No (Dominated by ASTRA) |
 
-*Finding: ASTRA's adaptive VoI policy matches the peak 66.7% resolution accuracy of unconstrained falsification while saving **20.7% compute cost** and reducing P95 latency from 307.4 ms to 210.1 ms.*
+*Finding: ASTRA's adaptive VoI policy matches the peak 66.7% resolution accuracy of unconstrained falsification while saving **20.7% compute cost** and reducing P95 latency from 738.0 ms to 504.3 ms.*
 
 ---
 
@@ -188,8 +193,9 @@ python -m astra_poc cloud-verify --url https://astra-investigation-service-XXXX-
 
 ## 7. Complete Documentation Index
 
-- [Google Hackathon Deployment Guide](docs/HACKATHON_DEPLOYMENT_GUIDE.md)
+- [Final Release Audit & Verification Report](docs/FINAL_RELEASE_AUDIT.md)
 - [Final Runtime Hardening & Defect Matrix](docs/FINAL_HARDENING.md)
+- [Google Hackathon Deployment Guide](docs/HACKATHON_DEPLOYMENT_GUIDE.md)
 - [Google Agent Architecture & Design](docs/GOOGLE_AGENT_ARCHITECTURE.md)
 - [Hackathon Eligibility Compliance Matrix](docs/HACKATHON_ELIGIBILITY.md)
 - [Devpost Submission Content](docs/DEVPOST_UPDATE.md)
@@ -199,7 +205,7 @@ python -m astra_poc cloud-verify --url https://astra-investigation-service-XXXX-
 - [Negative Results & Disproven Architectures](docs/NEGATIVE_RESULTS.md)
 - [Dataset Cards (Track A & B + 10 Families)](docs/DATASET_CARD.md)
 - [STRIDE Threat Model & Security Boundaries](docs/THREAT_MODEL_STRIDE.md)
-- [Scientific Preregistration v0.4.1](PREREGISTRATION.md)
+- [Scientific Preregistration v0.4.2](PREREGISTRATION.md)
 - [Google Cloud Deployment Guide](deploy/README.md)
 
 ---

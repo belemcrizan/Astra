@@ -22,6 +22,17 @@ class InvestigationProposal(BaseModel):
     expected_discrimination: str = Field(default="", description="Expected outcome distinction between candidate hypotheses.")
 
 
+class HypothesisDeltaRecord(BaseModel):
+    """Explicit belief change accounting for a single hypothesis in an investigation turn."""
+    hypothesis_id: str
+    hypothesis_name: str
+    score_before: float
+    score_after: float
+    score_delta: float
+    direction: str = "NEUTRAL"  # "SUPPORTS", "CONTRADICTS", "NEUTRAL"
+    resulting_status: str
+
+
 class AgentExecutionProvenance(BaseModel):
     """Cryptographic audit record of Google ADK / Gemini proposal and ASTRA execution."""
     turn: int = Field(default=1, description="Investigation turn index.")
@@ -33,6 +44,8 @@ class AgentExecutionProvenance(BaseModel):
     validation_error: str | None = Field(default=None, description="Rejection reason if validation failed.")
     executed_operation: str | None = Field(default=None, description="Actual operation executed in deterministic sandbox.")
     evidence_generated: list[dict[str, Any]] = Field(default_factory=list, description="Evidence items produced by execution.")
+    hypothesis_deltas: list[HypothesisDeltaRecord] = Field(default_factory=list, description="Explicit hypothesis belief shifts caused by this turn.")
+    candidate_utilities: list[dict[str, Any]] = Field(default_factory=list, description="VoI multi-attribute utility ranking for candidate operations.")
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     trace_id: str = Field(description="Unique distributed trace identifier.")
 
@@ -60,5 +73,6 @@ class GoogleAgentReport(BaseModel):
     primary_reason: str
     counterfactuals: list[dict[str, Any]] = Field(default_factory=list)
     provenance_records: list[AgentExecutionProvenance] = Field(default_factory=list)
+    candidate_utilities: list[dict[str, Any]] = Field(default_factory=list)
     series_preview: list[float] = Field(default_factory=list)
     duration_ms: float = 0.0

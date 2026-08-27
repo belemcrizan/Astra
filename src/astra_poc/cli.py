@@ -54,6 +54,9 @@ def main() -> None:
     p_gdemo = subparsers.add_parser("google-agent-demo", help="Run live Google ADK + Gemini 3.5+ investigation demo.")
     p_gdemo.add_argument("--repeat", type=int, default=1, help="Number of repetitions to evaluate execution stability.")
 
+    p_rep = subparsers.add_parser("repeatability", help="Run multi-run repeatability harness across canonical scenarios.")
+    p_rep.add_argument("--runs", type=int, default=10, help="Number of repetitions per scenario.")
+
     subparsers.add_parser("integration-test-google", help="Run live integration test with Google GenAI / Vertex AI.")
     
     p_elig = subparsers.add_parser("eligibility-check", help="Audit complete hackathon mandatory eligibility stack.")
@@ -99,7 +102,7 @@ def main() -> None:
     # Scientific Utilities
     subparsers.add_parser("real-demo", help="Run investigation on Track B real-world empirical dataset.")
     subparsers.add_parser("demo-failures", help="Run safety boundary and fault recovery tests.")
-    subparsers.add_parser("preregistration", help="Print frozen preregistration v0.4.1 config & SHA-256 hash.")
+    subparsers.add_parser("preregistration", help="Print frozen preregistration v0.4.2 config & SHA-256 hash.")
     subparsers.add_parser("schema", help="Export and validate report JSON Schema v0.4.")
     subparsers.add_parser("clean", help="Clean ephemeral report and log artifacts.")
 
@@ -107,6 +110,8 @@ def main() -> None:
 
     if args.command == "google-agent-demo":
         asyncio.run(execute_google_agent_demo(repeat=getattr(args, "repeat", 1)))
+    elif args.command == "repeatability":
+        asyncio.run(execute_repeatability_harness(runs=getattr(args, "runs", 10)))
     elif args.command == "integration-test-google":
         asyncio.run(execute_integration_test_google())
     elif args.command == "eligibility-check":
@@ -149,7 +154,9 @@ def main() -> None:
     elif args.command == "demo-failures":
         execute_fault_demo()
     elif args.command == "preregistration":
-        print(f"ASTRA Preregistration Identity: {PREREGISTRATION_CONFIG.name} (v{PREREGISTRATION_CONFIG.version})")
+        pname = PREREGISTRATION_CONFIG.get("name", "ASTRA Preregistration") if isinstance(PREREGISTRATION_CONFIG, dict) else getattr(PREREGISTRATION_CONFIG, "name", "ASTRA Preregistration")
+        pver = PREREGISTRATION_CONFIG.get("version", "0.4.2") if isinstance(PREREGISTRATION_CONFIG, dict) else getattr(PREREGISTRATION_CONFIG, "version", "0.4.2")
+        print(f"ASTRA Preregistration Identity: {pname} (v{pver})")
         print(f"Canonical SHA-256 Hash: {preregistration_hash()}")
     elif args.command == "schema":
         export_schema()
@@ -594,21 +601,67 @@ async def execute_adversarial_demo() -> None:
     print("=" * 75)
 
 
+async def execute_repeatability_harness(runs: int = 10) -> None:
+    """Evaluates stability and determinism across canonical scenarios."""
+    print("=" * 75)
+    print(f"  ASTRA v0.4.2 — MULTI-RUN REPEATABILITY HARNESS ({runs} Trials/Scenario)")
+    print("=" * 75)
+    
+    from .scenarios.registry import ScenarioRegistry
+    agent = ASTRAInvestigationAgent()
+    scenarios = ["hero", "control", "unknown"]
+    
+    print(f"{'Scenario':<12} | {'Runs':<6} | {'Decisions':<16} | {'Stop Reasons':<22} | {'Mean Latency':<12} | {'Stability'}")
+    print("-" * 85)
+
+    for sc_name in scenarios:
+        sc = ScenarioRegistry.generate(sc_name)
+        decisions: list[str] = []
+        stop_reasons: list[str] = []
+        latencies: list[float] = []
+
+        for r in range(runs):
+            t0 = time.perf_counter()
+            rep = await agent.run_investigation(
+                returns=sc.returns,
+                anomaly_idx=sc.anomaly_index,
+                case_id=f"rep-{sc_name}-{r}",
+            )
+            lat = (time.perf_counter() - t0) * 1000
+            latencies.append(lat)
+            decisions.append(rep.decision.value)
+            stop_reasons.append(rep.stop_reason.value)
+
+        dec_set = set(decisions)
+        stop_set = set(stop_reasons)
+        mean_lat = np.mean(latencies)
+        consistent = len(dec_set) == 1
+        stat_str = "100.0% PASS" if consistent else f"VARIED ({len(dec_set)} decs)"
+        print(f"{sc_name.upper():<12} | {runs:>4}   | {str(dec_set):<16} | {str(stop_set):<22} | {mean_lat:>9.1f} ms | {stat_str}")
+
+    print("=" * 75)
+
+
 def execute_multimodal_demo(input_path: str = "") -> None:
     print("=" * 75)
-    print("  ASTRA v0.4.1 — MULTIMODAL EVIDENCE INGESTION & CROSS-CHECK")
+    print("  ASTRA v0.4.2 — MULTIMODAL EVIDENCE INGESTION & CROSS-CHECK")
     print("=" * 75)
-    adapter = MultimodalEvidenceAdapter()
-    if input_path and Path(input_path).exists():
-        doc = adapter.ingest_document(input_path)
-    else:
-        doc = adapter.create_mock_analyst_note("ANALYST NOTE: Visual chart indicates sharp regime transition at t=600.")
+    claim = MultimodalEvidenceAdapter.ingest_document_or_chart(
+        file_path=input_path or "analyst_note_q3.txt",
+        claim_statement="ANALYST NOTE: Visual chart indicates sharp regime transition at t=600.",
+        claimed_timestamp=600,
+        claimed_feature="volatility_jump",
+    )
+    returns = np.random.normal(0, 0.01, 1200)
+    returns[600:] *= 3.0
+    updated_claim, ev = MultimodalEvidenceAdapter.cross_check_claim(claim, returns)
     
-    print(f"Multimodal Document: {doc.title} (Type: {doc.artifact_type.value})")
-    print(f"SHA-256 Digest: {doc.sha256[:16]}...")
-    print(f"Claims Extracted: {len(doc.extracted_claims)}")
-    for cl in doc.extracted_claims:
-        print(f"  - Claim: '{cl.text}' (Candidate Hypothesis: {cl.target_hypothesis_id})")
+    print(f"Multimodal Artifact: {claim.source_file} | SHA-256: {claim.source_hash[:16]}...")
+    print(f"Extracted Statement: '{claim.extracted_statement}'")
+    print(f"Claimed Timestamp:   t={claim.claimed_timestamp} | Feature: {claim.claimed_feature}")
+    print(f"Cross-Check Status:  {updated_claim.verification_status}")
+    print(f"Verified Evidence:   {ev.statement}")
+    print(f"Outcome:             {'SUPPORTED' if ev.passed else 'CONTRADICTED'}")
     print("=" * 75)
 
 

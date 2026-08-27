@@ -121,4 +121,30 @@ class InvestigationBenchmarkRunner:
     async def run_pareto_frontier(self, seeds: int = 15) -> list[dict[str, Any]]:
         """Convenience method returning the Pareto frontier table."""
         res = await self.run_investigation_ablations(seeds=seeds)
-        return res["pareto_frontier"]
+        pareto_table = res["pareto_frontier"]
+        self.export_latest_artifacts(pareto_table, seeds=seeds)
+        return pareto_table
+
+    def export_latest_artifacts(self, pareto_table: list[dict[str, Any]], seeds: int = 15) -> None:
+        """Exports reproducible benchmark artifacts to artifacts/benchmarks/latest.json and latest.csv."""
+        bench_dir = Path("artifacts") / "benchmarks"
+        bench_dir.mkdir(parents=True, exist_ok=True)
+        
+        artifact_data = {
+            "version": "0.4.2",
+            "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "seeds_per_policy": seeds,
+            "families": ["A", "B", "C", "D", "H"],
+            "methodology_sha256": "1b2eeaeb0a3f842cb4afaab755bd27fee469b818e05298bdbfd64d73ac0975a4",
+            "pareto_frontier": pareto_table,
+        }
+        
+        # Save JSON
+        (bench_dir / "latest.json").write_text(json.dumps(artifact_data, indent=2), encoding="utf-8")
+        
+        # Save CSV
+        csv_lines = ["policy,accuracy_pct,mean_cost_units,p95_latency_ms,pareto_efficient"]
+        for p in pareto_table:
+            csv_lines.append(f"{p['policy']},{p['accuracy']},{p['mean_cost']},{p['p95_latency_ms']},{p['pareto_efficient']}")
+        (bench_dir / "latest.csv").write_text("\n".join(csv_lines) + "\n", encoding="utf-8")
+

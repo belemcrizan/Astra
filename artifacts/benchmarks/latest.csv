@@ -1,0 +1,4 @@
+policy,accuracy_pct,mean_cost_units,p95_latency_ms,pareto_efficient
+fixed_sequence,46.7,1.2,460.1,True
+evidence_driven,66.7,1.8,504.3,True
+falsification_only,66.7,2.27,738.0,False

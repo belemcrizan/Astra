@@ -1,0 +1,42 @@
+{
+  "version": "0.4.2",
+  "timestamp": "2026-08-27T17:32:46Z",
+  "seeds_per_policy": 15,
+  "families": [
+    "A",
+    "B",
+    "C",
+    "D",
+    "H"
+  ],
+  "methodology_sha256": "1b2eeaeb0a3f842cb4afaab755bd27fee469b818e05298bdbfd64d73ac0975a4",
+  "pareto_frontier": [
+    {
+      "policy": "fixed_sequence",
+      "accuracy": 46.7,
+      "mean_cost": 1.2,
+      "p50_latency_ms": 403.0,
+      "p95_latency_ms": 460.1,
+      "cost_regret": 0.23,
+      "pareto_efficient": true
+    },
+    {
+      "policy": "evidence_driven",
+      "accuracy": 66.7,
+      "mean_cost": 1.8,
+      "p50_latency_ms": 425.7,
+      "p95_latency_ms": 504.3,
+      "cost_regret": 0.63,
+      "pareto_efficient": true
+    },
+    {
+      "policy": "falsification_only",
+      "accuracy": 66.7,
+      "mean_cost": 2.27,
+      "p50_latency_ms": 430.8,
+      "p95_latency_ms": 738.0,
+      "cost_regret": 1.1,
+      "pareto_efficient": false
+    }
+  ]
+}

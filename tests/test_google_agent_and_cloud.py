@@ -148,14 +148,14 @@ class GoogleAgentAndCloudTests(unittest.TestCase):
         h_data = res_h.json()
         self.assertEqual(h_data["status"], "healthy")
         self.assertEqual(h_data["service"], "astra-investigation-service")
-        self.assertEqual(h_data["version"], "0.4.1")
+        self.assertEqual(h_data["version"], "0.4.2")
         self.assertEqual(h_data["agent_framework"], "Google ADK")
 
         # Version check
         res_v = client.get("/version")
         self.assertEqual(res_v.status_code, 200)
         v_data = res_v.json()
-        self.assertEqual(v_data["version"], "0.4.1")
+        self.assertEqual(v_data["version"], "0.4.2")
         self.assertEqual(v_data["service"], "astra-investigation-service")
         self.assertEqual(v_data["agent_framework"], "Google ADK")
         self.assertEqual(v_data["gemini_model"], "gemini-3.5-flash-lite")
@@ -204,7 +204,7 @@ class GoogleAgentAndCloudTests(unittest.TestCase):
         res_root = client.get("/")
         self.assertEqual(res_root.status_code, 200)
         self.assertIn("text/html", res_root.headers.get("content-type", ""))
-        self.assertIn("ASTRA v0.4.1", res_root.text)
+        self.assertIn("ASTRA v0.4.2", res_root.text)
         self.assertIn("Investigation Timeline", res_root.text)
 
         # Favicon
@@ -216,10 +216,18 @@ class GoogleAgentAndCloudTests(unittest.TestCase):
         self.assertEqual(res_st.status_code, 200)
         st_data = res_st.json()
         self.assertEqual(st_data["service"], "ASTRA")
-        self.assertEqual(st_data["version"], "0.4.1")
+        self.assertEqual(st_data["version"], "0.4.2")
         self.assertEqual(st_data["agent_framework"], "Google ADK")
         self.assertEqual(st_data["model_provider"], "Google")
         self.assertEqual(st_data["status"], "online")
+
+        # Scenario Catalog
+        res_sc = client.get("/api/scenarios")
+        self.assertEqual(res_sc.status_code, 200)
+        sc_list = res_sc.json()
+        self.assertGreaterEqual(len(sc_list), 5)
+        hero_sc = next(s for s in sc_list if s["id"] == "hero")
+        self.assertEqual(hero_sc["family"], "C")
 
 
 if __name__ == "__main__":
