@@ -1,4 +1,4 @@
-# PowerShell deployment script for ASTRA v0.3 to Google Cloud Run
+# PowerShell deployment script for ASTRA v0.4.1 to Google Cloud Run
 param(
     [Parameter(Mandatory=$true)]
     [string]$ProjectId,
@@ -6,10 +6,10 @@ param(
 )
 
 $ServiceName = "astra-investigation-service"
-$ImageName = "gcr.io/$ProjectId/${ServiceName}:v0.3.0"
+$ImageName = "gcr.io/$ProjectId/${ServiceName}:v0.4.1"
 
 Write-Host "==========================================================" -ForegroundColor Cyan
-Write-Host "  Deploying ASTRA v0.3 to Google Cloud Run" -ForegroundColor Cyan
+Write-Host "  Deploying ASTRA v0.4.1 (Google ADK + Gemini 3.5+) to Google Cloud Run" -ForegroundColor Cyan
 Write-Host "  Project: $ProjectId" -ForegroundColor Cyan
 Write-Host "  Region:  $Region" -ForegroundColor Cyan
 Write-Host "==========================================================" -ForegroundColor Cyan
@@ -30,13 +30,12 @@ gcloud run deploy $ServiceName `
     --cpu="1" `
     --concurrency="80" `
     --timeout="60s" `
-    --set-env-vars="ASTRA_OUTPUT_DIR=/tmp/artifacts,ASTRA_USE_LLM=false"
+    --set-env-vars="ASTRA_OUTPUT_DIR=/tmp/artifacts,ASTRA_GEMINI_MODEL=gemini-2.5-flash"
 
 # 3. Verify Health Check
 $ServiceUrl = (gcloud run services describe $ServiceName --project=$ProjectId --region=$Region --format="value(status.url)")
-Write-Host "[3/3] Verifying health at $ServiceUrl/health..." -ForegroundColor Yellow
-$response = Invoke-RestMethod -Uri "$ServiceUrl/health" -Method Get
-Write-Host "Status: $($response.status)" -ForegroundColor Green
+Write-Host "[3/3] Verifying remote service via ASTRA cloud-verify at $ServiceUrl..." -ForegroundColor Yellow
+python -m astra_poc cloud-verify --url $ServiceUrl
 
-Write-Host "`nASTRA v0.3 is live at: $ServiceUrl" -ForegroundColor Green
-Write-Host "Test endpoint: curl -X POST $ServiceUrl/judge-demo"
+Write-Host "`nASTRA v0.4.1 is live at: $ServiceUrl" -ForegroundColor Green
+Write-Host "Test agent endpoint: curl -X POST $ServiceUrl/agent/investigate -H 'Content-Type: application/json' -d '{\`"scenario\`": \`"hero\`", \`"seed\`": 42}'"

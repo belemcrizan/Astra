@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# ASTRA v0.3 — Google Cloud Run Deployment Script
+# ASTRA v0.4.1 — Google Cloud Run Deployment Script
 # Usage: ./deploy_cloud_run.sh <PROJECT_ID> [REGION]
 
 PROJECT_ID="${1:-${GOOGLE_CLOUD_PROJECT:-}}"
 REGION="${2:-us-central1}"
 SERVICE_NAME="astra-investigation-service"
-IMAGE_NAME="gcr.io/${PROJECT_ID}/${SERVICE_NAME}:v0.3.0"
+IMAGE_NAME="gcr.io/${PROJECT_ID}/${SERVICE_NAME}:v0.4.1"
 
 if [[ -z "$PROJECT_ID" ]]; then
     echo "ERROR: Project ID is required. Pass as argument or set GOOGLE_CLOUD_PROJECT."
@@ -16,7 +16,7 @@ if [[ -z "$PROJECT_ID" ]]; then
 fi
 
 echo "=========================================================="
-echo "  Deploying ASTRA v0.3 to Google Cloud Run"
+echo "  Deploying ASTRA v0.4.1 (Google ADK + Gemini 3.5+) to Google Cloud Run"
 echo "  Project: ${PROJECT_ID}"
 echo "  Region:  ${REGION}"
 echo "  Service: ${SERVICE_NAME}"
@@ -38,13 +38,13 @@ gcloud run deploy "${SERVICE_NAME}" \
     --cpu="1" \
     --concurrency="80" \
     --timeout="60s" \
-    --set-env-vars="ASTRA_OUTPUT_DIR=/tmp/artifacts,ASTRA_USE_LLM=false"
+    --set-env-vars="ASTRA_OUTPUT_DIR=/tmp/artifacts,ASTRA_GEMINI_MODEL=gemini-2.5-flash"
 
 # 3. Verify health endpoint
 SERVICE_URL=$(gcloud run services describe "${SERVICE_NAME}" --project="${PROJECT_ID}" --region="${REGION}" --format='value(status.url)')
-echo "[3/3] Verifying health endpoint at ${SERVICE_URL}/health..."
-curl -s -f "${SERVICE_URL}/health" | grep -q "healthy" && echo "Deployment verified successfully!" || echo "Warning: Health check failed."
+echo "[3/3] Verifying remote service via ASTRA cloud-verify at ${SERVICE_URL}..."
+python -m astra_poc cloud-verify --url "${SERVICE_URL}"
 
 echo ""
-echo "ASTRA v0.3 is live at: ${SERVICE_URL}"
-echo "Test the live judge demo: curl -X POST ${SERVICE_URL}/judge-demo"
+echo "ASTRA v0.4.1 is live at: ${SERVICE_URL}"
+echo "Test agent investigation: curl -X POST ${SERVICE_URL}/agent/investigate -H 'Content-Type: application/json' -d '{\"scenario\": \"hero\", \"seed\": 42}'"

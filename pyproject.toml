@@ -5,19 +5,24 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "astra-poc"
 version = "0.4.1"
-description = "ASTRA v0.4.1: Autonomous Evidence-Driven Investigation Engine for Weak Signals and Regimes"
+description = "ASTRA v0.4.1: Autonomous Evidence-Driven Investigation Engine powered by Google ADK and Gemini 3.5+ on Google Cloud Run"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
   "numpy>=2.0",
   "pydantic>=2.8",
   "scipy>=1.13",
+  "google-adk>=2.8.0",
+  "google-genai>=2.20.0",
+  "fastapi>=0.115.0",
+  "uvicorn>=0.30.0",
+  "requests>=2.30.0",
 ]
 
 [project.optional-dependencies]
-api = ["fastapi>=0.115", "uvicorn[standard]>=0.30"]
+api = ["fastapi>=0.115.0", "uvicorn[standard]>=0.30.0"]
 dev = ["pytest>=8.0"]
-cloud = ["google-genai>=0.1.0"]
+cloud = ["google-genai>=2.20.0", "google-adk>=2.8.0"]
 
 [project.scripts]
 astra = "astra_poc.cli:main"
