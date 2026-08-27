@@ -172,24 +172,27 @@ class CompetingHypothesisPool:
 
         # Dynamic H_unknown scoring
         known = [h for h in self.hypotheses.values() if h.id != "H_unknown"]
-        all_known_falsified = all(h.status == HypothesisStatus.FALSIFIED or h.evidence_score < 0.20 for h in known)
+        known_max = max([h.evidence_score for h in known]) if known else 0.0
+        known_mean = float(np.mean([h.evidence_score for h in known])) if known else 0.0
+        falsified_count = sum(1 for h in known if h.status == HypothesisStatus.FALSIFIED or h.evidence_score <= 0.25)
 
-        if all_known_falsified:
-            self.unknown_score = 0.85
-            self.hypotheses["H_unknown"].evidence_score = 0.85
-            self.hypotheses["H_unknown"].status = HypothesisStatus.CONFIRMED
+        if falsified_count >= 3 or known_max <= 0.35:
+            # Significant failure of known catalog hypotheses -> Open-set dynamics dominate
+            self.unknown_score = round(min(0.95, max(0.65, 0.70 + (0.35 - known_max) * 0.8)), 3)
+            self.hypotheses["H_unknown"].evidence_score = self.unknown_score
+            self.hypotheses["H_unknown"].status = HypothesisStatus.LEADING
             if "Unmodeled Exogenous Jump-Diffusion Dynamics" not in self.hypothesis_expansion_proposals:
                 self.hypothesis_expansion_proposals.append("Unmodeled Exogenous Jump-Diffusion Dynamics")
         elif ranked and ranked[0].id == "H1" and ranked[0].evidence_score >= 0.40:
             # Benign noise survived; unmodeled dynamics are not dominant
             self.unknown_score = 0.15
             self.hypotheses["H_unknown"].evidence_score = 0.15
-        elif ranked and ranked[0].evidence_score >= 0.50:
-            self.unknown_score = round(max(0.10, 0.40 - ranked[0].evidence_score * 0.3), 3)
+        elif known_max >= 0.60:
+            self.unknown_score = round(max(0.05, 0.35 - known_max * 0.3), 3)
             self.hypotheses["H_unknown"].evidence_score = self.unknown_score
         else:
-            self.unknown_score = 0.30
-            self.hypotheses["H_unknown"].evidence_score = 0.30
+            self.unknown_score = round(max(0.20, 0.45 - known_mean * 0.4), 3)
+            self.hypotheses["H_unknown"].evidence_score = self.unknown_score
 
     def to_legacy_hypotheses(self) -> list[Hypothesis]:
         return [

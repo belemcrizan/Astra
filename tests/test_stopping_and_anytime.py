@@ -10,7 +10,6 @@ from astra_poc.contracts import (
 )
 from astra_poc.policy.stopping import StoppingPolicy
 
-
 class StoppingPolicyTests(unittest.TestCase):
     def test_budget_exhaustion_triggers_stop(self):
         hyps = [
@@ -18,13 +17,30 @@ class StoppingPolicyTests(unittest.TestCase):
             InvestigationHypothesis(id="H2", name="Regime", evidence_score=0.40),
         ]
         b = InvestigationBudget(max_steps=3, steps_used=3)
+        estimates = [
+            ActionUtilityEstimate(action=DSLOperationName.RUN_PELT, voi=1.5, selected=True)
+        ]
+        should_stop, reason, msg = StoppingPolicy.evaluate_stop(
+            ranked_hypotheses=hyps,
+            utility_estimates=estimates,
+            budget=b,
+        )
+        self.assertTrue(should_stop)
+        self.assertEqual(reason, StopReason.BUDGET_EXHAUSTED)
+
+    def test_information_exhaustion_triggers_stop(self):
+        hyps = [
+            InvestigationHypothesis(id="H1", name="Noise", evidence_score=0.45),
+            InvestigationHypothesis(id="H2", name="Regime", evidence_score=0.40),
+        ]
+        b = InvestigationBudget(max_steps=10, steps_used=1)
         should_stop, reason, msg = StoppingPolicy.evaluate_stop(
             ranked_hypotheses=hyps,
             utility_estimates=[],
             budget=b,
         )
         self.assertTrue(should_stop)
-        self.assertEqual(reason, StopReason.BUDGET_EXHAUSTED)
+        self.assertEqual(reason, StopReason.INFORMATION_EXHAUSTED)
 
     def test_conclusive_decision_sufficiency(self):
         hyps = [

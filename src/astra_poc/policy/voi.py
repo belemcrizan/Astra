@@ -13,9 +13,47 @@ from ..contracts import (
 from ..execution.dsl import DSL_OPERATION_SPECS, DSLOperationSpec
 
 
+# Direct test power table mapping hypothesis to operations with high falsification power
+HYPOTHESIS_FALSIFICATION_POWER: dict[str, dict[DSLOperationName, float]] = {
+    "H1": {
+        DSLOperationName.COMPARE_WINDOWS: 0.95,
+        DSLOperationName.RUN_PELT: 0.92,
+        DSLOperationName.RUN_CUSUM: 0.85,
+        DSLOperationName.RUN_PAGE_HINKLEY: 0.80,
+        DSLOperationName.CALCULATE_ENTROPY: 0.60,
+        DSLOperationName.CHECK_SUSCEPTIBILITY: 0.55,
+    },
+    "H2": {
+        DSLOperationName.RUN_PAGE_HINKLEY: 0.92,
+        DSLOperationName.RUN_CUSUM: 0.88,
+        DSLOperationName.RUN_PELT: 0.82,
+        DSLOperationName.CALCULATE_ENTROPY: 0.80,
+        DSLOperationName.COMPARE_WINDOWS: 0.75,
+        DSLOperationName.CHECK_SUSCEPTIBILITY: 0.70,
+    },
+    "H3": {
+        DSLOperationName.RUN_PELT: 0.95,
+        DSLOperationName.RUN_BOCPD: 0.90,
+        DSLOperationName.COMPARE_WINDOWS: 0.85,
+        DSLOperationName.RUN_PAGE_HINKLEY: 0.75,
+        DSLOperationName.RUN_CUSUM: 0.70,
+    },
+    "H4": {
+        DSLOperationName.TEST_TEMPORAL_STACKING: 0.95,
+        DSLOperationName.COMPARE_WINDOWS: 0.60,
+        DSLOperationName.RUN_CUSUM: 0.50,
+    },
+    "H_unknown": {
+        DSLOperationName.REQUEST_FEATURE: 0.85,
+        DSLOperationName.CALCULATE_ENTROPY: 0.80,
+        DSLOperationName.CHECK_SUSCEPTIBILITY: 0.75,
+    },
+}
+
+
 class VoIEngine:
     """Computes Expected Information Gain (EIG), Expected Falsification Gain (EFG),
-    Expected Decision-Relevance (EDR), and Value of Information (VoI).
+    Expected Decision-Relevance (EDR), and Value of Information (VoI) for ASTRA v0.4.1.
     """
 
     @classmethod
@@ -49,33 +87,35 @@ class VoIEngine:
                 continue
 
             # 1. Expected Information Gain (EIG)
-            # Measures discrimination overlap between top competing hypotheses
+            # Measures discrimination capability between the top competing pair
             overlap = len(top_pair.intersection(set(spec.discriminates)))
             score_diff = abs(h_lead.evidence_score - h_second.evidence_score)
             closeness_factor = float(1.0 / (1.0 + 2.0 * score_diff))
-            eig = (overlap / max(len(spec.discriminates), 1)) * closeness_factor
+            eig = float(min(1.0, overlap / 2.0) * closeness_factor)
 
             # 2. Expected Falsification Gain (EFG)
-            # Measures probability/utility of disproving the leading plausible hypothesis
-            is_lead_targeted = h_lead.id in spec.discriminates
-            lead_falsification_importance = 1.0 if h_lead.id in ("H1", "H2", "H3", "H4") else 0.5
-            efg = (0.85 if is_lead_targeted else 0.20) * lead_falsification_importance * (1.0 - (0.3 * h_lead.falsification_attempts))
-            efg = float(np.clip(efg, 0.0, 1.0))
+            # Measures targeted power to falsify the current leading hypothesis
+            power_dict = HYPOTHESIS_FALSIFICATION_POWER.get(h_lead.id, {})
+            base_power = power_dict.get(op_name, 0.40 if h_lead.id in spec.discriminates else 0.15)
+            # Diminishing returns if leading hypothesis has already been challenged
+            attempt_penalty = max(0.2, 1.0 - (0.25 * h_lead.falsification_attempts))
+            efg = float(np.clip(base_power * attempt_penalty, 0.0, 1.0))
 
             # 3. Expected Decision Relevance (EDR)
-            # Higher if top hypotheses imply different decision outcomes (e.g. H1->CLOSE vs H2/H3->ESCALATE)
-            h_lead_implies_escalate = h_lead.id in ("H2", "H3", "H4")
-            h_second_implies_escalate = h_second.id in ("H2", "H3", "H4")
-            decision_divergence = 1.0 if (h_lead_implies_escalate != h_second_implies_escalate) else 0.4
+            # Higher if top hypotheses imply divergent decisions (e.g. H1->CLOSE vs H2/H3->ESCALATE vs H_unknown->DEFER)
+            action_map = {"H1": "CLOSE", "H_unknown": "DEFER", "H2": "ESCALATE", "H3": "ESCALATE", "H4": "ESCALATE"}
+            h_lead_act = action_map.get(h_lead.id, "WATCH")
+            h_second_act = action_map.get(h_second.id, "WATCH")
+            decision_divergence = 1.0 if (h_lead_act != h_second_act) else 0.35
             edr = float(eig * decision_divergence)
 
             # 4. Costs, Latencies, Risk Penalties
             cost = spec.cost_units
-            latency = 5.0 * cost  # approximate expected ms
+            latency = 4.0 * cost  # ms
             risk_penalty = 0.05 * cost
 
-            # Budget penalty multiplier if budget is running low
-            budget_remaining_ratio = max(0.01, (budget.max_cost_units - budget.cost_units_used) / budget.max_cost_units)
+            # Budget sensitivity scaling
+            budget_remaining_ratio = max(0.05, (budget.max_cost_units - budget.cost_units_used) / max(budget.max_cost_units, 1.0))
             effective_cost_lambda = cost_lambda / budget_remaining_ratio
 
             # 5. Net Utility: U(a) = α·EIG + β·EFG + γ·EDR - λ_c·C - λ_r·R
@@ -88,7 +128,6 @@ class VoIEngine:
             )
 
             # 6. Value of Information (VoI)
-            # VoI(a) = Net decision improvement - Cost
             voi = (alpha_weight * eig + beta_weight * efg + gamma_weight * edr) - (cost * 0.40)
 
             reason = (
@@ -110,8 +149,23 @@ class VoIEngine:
                 reasoning=reason,
             ))
 
-        # Sort descending by net utility
-        estimates.sort(key=lambda x: x.net_utility, reverse=True)
+        # Deterministic tie-breaking sort:
+        # 1. Higher Net Utility
+        # 2. Higher Expected Falsification Gain
+        # 3. Higher Expected Info Gain
+        # 4. Lower Cost
+        # 5. Lower Latency
+        # 6. Stable Lexical ordering
+        estimates.sort(
+            key=lambda x: (
+                -round(x.net_utility, 4),
+                -round(x.expected_falsification_gain, 4),
+                -round(x.expected_info_gain, 4),
+                round(x.cost, 4),
+                round(x.latency_ms, 4),
+                x.action.value,
+            )
+        )
         if estimates:
             estimates[0].selected = True
 

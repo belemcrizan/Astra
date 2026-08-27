@@ -116,7 +116,7 @@ def main() -> None:
 
 async def execute_judge_demo(explain: bool = False) -> None:
     print("=" * 75)
-    print("  ASTRA v0.4 — LIVE JUDGE DEMONSTRATION (Decision Science & Rational Control)")
+    print("  ASTRA v0.4.1 — LIVE JUDGE DEMONSTRATION (Decision Science & Rational Control)")
     print("=" * 75)
 
     adapter = SyntheticMarketAdapter()
@@ -130,12 +130,12 @@ async def execute_judge_demo(explain: bool = False) -> None:
     print("\n[Stage 2: State Machine Lifecycle & Triage]")
     print("  > State Machine: OBSERVING -> SIGNAL_DETECTED -> TRIAGING -> INVESTIGATING")
 
-    print("\n[Stage 3: Competing Hypotheses & Open-Set Assessment]")
-    print("  > H1: Transient Statistical Fluctuation (Prior: 45%)")
-    print("  > H2: Gradual Regime Change (Prior: 40%)")
-    print("  > H3: Abrupt Structural Break (Prior: 35%)")
-    print("  > H4: Coordinated Weak Signal (Prior: 30%)")
-    print("  > H_unknown: Unmodeled Exogenous Dynamics (Prior: 20%)")
+    print("\n[Stage 3: Competing Hypotheses & Initial Plausibility]")
+    print("  > H1: Transient Statistical Fluctuation (Initial Evidence Score: 45%)")
+    print("  > H2: Gradual Regime Change (Initial Evidence Score: 40%)")
+    print("  > H3: Abrupt Structural Break (Initial Evidence Score: 35%)")
+    print("  > H4: Coordinated Weak Signal (Initial Evidence Score: 30%)")
+    print("  > H_unknown: Unmodeled Exogenous Dynamics (Initial Evidence Score: 20%)")
 
     report = await engine.investigate(series, strategy="evidence_driven", force_reprocess=True)
 
@@ -145,12 +145,17 @@ async def execute_judge_demo(explain: bool = False) -> None:
         print("  Candidate Action Utility Ranking (Step 1):")
         for est in first_step[:3]:
             print(f"    - `{est.action.value}`: Net Utility={est.net_utility:+.2f} (EIG={est.expected_info_gain:.2f}, EFG={est.expected_falsification_gain:.2f}, VoI={est.voi:+.2f}) {'[SELECTED]' if est.selected else ''}")
+        if len(first_step) > 1:
+            diff = first_step[0].net_utility - first_step[1].net_utility
+            print(f"  > Selected `{first_step[0].action.value}` over runner-up `{first_step[1].action.value}` (Utility margin: {diff:+.2f})")
 
     print("\n[Stage 5: Autonomous Sandboxed Execution & Falsification]")
     for idx, res in enumerate(report.dsl_results, 1):
         print(f"  Step {idx}: Executed `{res.op_name.value}` (Cost: {res.cost_units:.1f}u | Latency: {res.latency_ms:.1f} ms)")
         if res.contradicts:
             print(f"         Falsified/Contradicted: {res.contradicts}")
+        if res.supports:
+            print(f"         Supported: {res.supports}")
 
     print("\n[Stage 6: Stopping Policy & Evidence Re-ranking]")
     print(f"  > Stop Reason: **{report.stop_reason.value}**")
@@ -159,7 +164,8 @@ async def execute_judge_demo(explain: bool = False) -> None:
 
     print("\n[Stage 7: Policy Decision, Counterfactual & Provenance]")
     dec = report.decision_outcome
-    print(f"  > FINAL DECISION: {dec.decision.value if dec else 'UNKNOWN'} (Confidence: {dec.decision_confidence:.0%})")
+    rel = f"{dec.decision_reliability_score:.2f}" if dec else "N/A"
+    print(f"  > FINAL DECISION: {dec.decision.value if dec else 'UNKNOWN'} (Reliability Score: {rel} uncalibrated)")
     print(f"  > REASON CODES: {[r.value for r in dec.reason_codes] if dec else []}")
     print(f"  > Human Review Required: {'YES' if dec and dec.human_review_required else 'NO'}")
     
@@ -174,31 +180,40 @@ async def execute_judge_demo(explain: bool = False) -> None:
 
 async def execute_hero_demo() -> None:
     print("=" * 75)
-    print("  ASTRA v0.4 — HERO SCENARIO (Hypothesis Trap & Change of Mind)")
+    print("  ASTRA v0.4.1 — HERO SCENARIO (Hypothesis Trap & Change of Mind)")
     print("=" * 75)
-    print("Scenario: An ambiguous surge occurs. Initial prior strongly favors H1 (Transient Noise).")
+    print("Scenario: An ambiguous surge occurs. Initial plausibility strongly favors H1 (Transient Noise).")
     print("ASTRA deliberately attempts to FALSIFY H1 using targeted discriminative experiments.\n")
 
     scenario = ScenarioGenerator.generate_scenario("C", seed=42)
     engine = InvestigationEngine(Settings(seed=42))
     report = await engine.investigate(scenario, strategy="evidence_driven", force_reprocess=True)
 
-    print("1. Initial Belief: H1 was leading candidate (Prior: 45%).")
-    print("2. Falsification Engine deployed `COMPARE_WINDOWS` and `RUN_PELT`.")
-    print("3. Outcome: Optimal segmentation proved sharp variance jump at t=600.")
-    print("4. H1 was FALSIFIED and downgraded; H2/H3 promoted to leading status.")
+    print("1. Ingested scenario with injected abrupt variance jump at t=600.")
+    print("2. Initial Plausibility Scores: H1: 45%, H2: 40%, H3: 35%, H4: 30%, H_unknown: 20%.")
+    print("3. Executed Falsification & Discriminative Tests (Causal Trace):")
+    for idx, res in enumerate(report.dsl_results, 1):
+        ev_summary = "; ".join(e.statement for e in res.evidence_generated)
+        print(f"   Step {idx}: `{res.op_name.value}` -> {ev_summary}")
+        if res.contradicts:
+            print(f"          Contradicted: {res.contradicts}")
+        if res.supports:
+            print(f"          Supported: {res.supports}")
+    print(f"4. Stopping Policy halted investigation with: {report.stop_reason.value}")
+    dec = report.decision_outcome
+    rel = f"{dec.decision_reliability_score:.2f}" if dec else "N/A"
     print(f"5. Final Leading Hypothesis: {report.competing_hypotheses[0].id} ({report.competing_hypotheses[0].evidence_score:.0%})")
-    print(f"6. Stop Reason: {report.stop_reason.value}")
-    print(f"7. Final Decision: {report.decision_outcome.decision.value if report.decision_outcome else 'UNKNOWN'}")
+    print(f"6. Final Decision: {dec.decision.value if dec else 'UNKNOWN'} (Reliability Score: {rel} uncalibrated)")
+    print(f"7. Primary Reason: {dec.primary_reason if dec else 'N/A'}")
     print("=" * 75)
 
 
 async def execute_control_demo() -> None:
     print("=" * 75)
-    print("  ASTRA v0.4 — CONTROL SCENARIO (Benign Noise & VoI Stopping)")
+    print("  ASTRA v0.4.1 — CONTROL SCENARIO (Benign Noise & Safe Closure)")
     print("=" * 75)
     print("Scenario: Stationary Gaussian noise with an isolated outlier (no regime change).")
-    print("Goal: Prove ASTRA safely halts via VoI <= 0 and closes without false alarm.\n")
+    print("Goal: Prove ASTRA safely halts via VoI <= 0 / Decision Sufficiency and closes without false alarm.\n")
 
     scenario = ScenarioGenerator.generate_scenario("A", seed=999)
     engine = InvestigationEngine(Settings(seed=999))
@@ -208,14 +223,16 @@ async def execute_control_demo() -> None:
     print("2. Window contrast test executed; variance shift was negligible.")
     print("3. H1 (Transient Noise) SURVIVED; all alternative hypotheses contradicted.")
     print(f"4. Stopping Policy halted investigation with: {report.stop_reason.value}")
-    print(f"5. Final Decision: {report.decision_outcome.decision.value if report.decision_outcome else 'UNKNOWN'}")
-    print(f"6. Result: SUCCESS — Anomaly closed safely without unnecessary escalation.")
+    dec = report.decision_outcome
+    print(f"5. Final Decision: {dec.decision.value if dec else 'UNKNOWN'}")
+    print(f"6. Primary Reason: {dec.primary_reason if dec else 'N/A'}")
+    print(f"7. Result: SUCCESS — Anomaly closed safely without unnecessary escalation.")
     print("=" * 75)
 
 
 async def execute_unknown_demo() -> None:
     print("=" * 75)
-    print("  ASTRA v0.4 — OPEN-SET / UNKNOWN REGIME DEMO")
+    print("  ASTRA v0.4.1 — OPEN-SET / UNKNOWN REGIME DEMO")
     print("=" * 75)
     print("Scenario: Chaotic heavy-tailed jump process outside Gaussian parametric assumptions.")
     print("Goal: Demonstrate functional H_unknown dominance and refusal of forced classification.\n")
@@ -227,34 +244,40 @@ async def execute_unknown_demo() -> None:
     print(f"1. Known hypotheses (H1..H4) failed parametric tests.")
     print(f"2. Open-Set Score elevated to: {report.unknown_score:.1%}")
     print(f"3. Stop Reason: {report.stop_reason.value}")
-    print(f"4. Final Decision: {report.decision_outcome.decision.value if report.decision_outcome else 'UNKNOWN'}")
-    print(f"5. Primary Reason: {report.decision_outcome.primary_reason if report.decision_outcome else ''}")
-    print("6. Result: SUCCESS — Forced classification safely rejected.")
+    dec = report.decision_outcome
+    print(f"4. Final Decision: {dec.decision.value if dec else 'UNKNOWN'}")
+    print(f"5. Primary Reason: {dec.primary_reason if dec else ''}")
+    print(f"6. Result: SUCCESS — Forced classification safely rejected.")
     print("=" * 75)
 
 
 async def execute_budget_demo() -> None:
     print("=" * 75)
-    print("  ASTRA v0.4 — BUDGET-ADAPTIVE INVESTIGATION DEMO")
+    print("  ASTRA v0.4.1 — BUDGET-ADAPTIVE INVESTIGATION DEMO")
     print("=" * 75)
-    print("Evaluating the identical anomaly under 3 different budget constraints:")
+    print("Evaluating the identical subtle drift anomaly under 3 different budget constraints:")
 
     scenario = ScenarioGenerator.generate_scenario("B", seed=42)
     engine = InvestigationEngine()
 
-    for max_cost, label in [(1.5, "LOW (1.5u)"), (4.0, "MEDIUM (4.0u)"), (10.0, "HIGH (10.0u)")]:
-        b = InvestigationBudget(max_cost_units=max_cost, max_steps=5)
+    budgets = [
+        (InvestigationBudget(max_cost_units=1.0, max_steps=1, max_tests=1), "LOW (1.0u, 1 test)   "),
+        (InvestigationBudget(max_cost_units=3.0, max_steps=3, max_tests=3), "MEDIUM (3.0u, 3 tests)"),
+        (InvestigationBudget(max_cost_units=8.0, max_steps=6, max_tests=6), "HIGH (8.0u, 6 tests)  "),
+    ]
+
+    for b, label in budgets:
         rep = await engine.investigate(scenario, budget=b, force_reprocess=True)
         dec = rep.decision_outcome.decision.value if rep.decision_outcome else "N/A"
-        print(f"  - Budget {label:15}: Steps={rep.budget.steps_used} | Cost={rep.budget.cost_units_used:.1f}u | Stop={rep.stop_reason.value:25} | Decision={dec}")
+        print(f"  - Budget {label}: Steps={rep.budget.steps_used} | Cost={rep.budget.cost_units_used:.1f}u | Stop={rep.stop_reason.value:25} | Decision={dec}")
 
-    print("\nResult: ASTRA adapts its stopping policy and decision based on available budget.")
+    print("\nResult: ASTRA adapts its stopping policy, tests executed, and decision based on available budget.")
     print("=" * 75)
 
 
 async def execute_adversarial_demo() -> None:
     print("=" * 75)
-    print("  ASTRA v0.4 — ADVERSARIAL INVESTIGATION DEMO")
+    print("  ASTRA v0.4.1 — ADVERSARIAL INVESTIGATION DEMO")
     print("=" * 75)
 
     scenario = ScenarioGenerator.generate_scenario("I", seed=777)
@@ -263,16 +286,18 @@ async def execute_adversarial_demo() -> None:
 
     print("1. Ingested scenario with adversarial alternating impulse bursts.")
     print(f"2. Tests executed: {rep.budget.tests_used} (Cost: {rep.budget.cost_units_used:.1f}u)")
-    print(f"3. Decision: {rep.decision_outcome.decision.value if rep.decision_outcome else 'N/A'}")
-    conf_str = f"{rep.decision_outcome.decision_confidence:.0%}" if rep.decision_outcome else "N/A"
-    print(f"4. Confidence: {conf_str}")
-    print("5. Result: ASTRA isolated the burst pattern without unhandled failure.")
+    dec = rep.decision_outcome.decision.value if rep.decision_outcome else "N/A"
+    rel = f"{rep.decision_outcome.decision_reliability_score:.2f}" if rep.decision_outcome else "N/A"
+    print(f"3. Decision: {dec}")
+    print(f"4. Reliability Score: {rel} (uncalibrated)")
+    print(f"5. Primary Reason: {rep.decision_outcome.primary_reason if rep.decision_outcome else 'N/A'}")
+    print("6. Result: ASTRA isolated the burst pattern without unhandled failure.")
     print("=" * 75)
 
 
 def execute_multimodal_demo(input_path: str = "") -> None:
     print("=" * 75)
-    print("  ASTRA v0.4 — SANDBOXED MULTIMODAL EVIDENCE DEMO")
+    print("  ASTRA v0.4.1 — SANDBOXED MULTIMODAL EVIDENCE DEMO")
     print("=" * 75)
 
     adapter = SyntheticMarketAdapter()
@@ -332,16 +357,18 @@ async def execute_ablations(seeds: int = 15) -> None:
 
 async def execute_real_demo() -> None:
     print("=" * 75)
-    print("  ASTRA v0.4 — TRACK B: REAL-WORLD DATASET EVALUATION")
+    print("  ASTRA v0.4.1 — TRACK B: REAL-WORLD DATASET EVALUATION")
     print("=" * 75)
     adapter = RealMarketAdapter()
-    series = adapter.load_real_series()
+    series = adapter.load()
     engine = InvestigationEngine()
     rep = await engine.investigate(series, strategy="evidence_driven", force_reprocess=True)
     dec = rep.decision_outcome.decision.value if rep.decision_outcome else "N/A"
     print(f"Dataset: {series.version} ({len(series.returns)} points) | SHA-256: {series.sha256[:16]}...")
+    print(f"Epistemic Status: {adapter.track.value} | Ground Truth Available: {adapter.has_ground_truth}")
     print(f"Investigation Decision: {dec} | Tests: {rep.budget.tests_used} | Cost: {rep.budget.cost_units_used:.1f}u")
     print(f"Stop Reason: {rep.stop_reason.value}")
+    print(f"Primary Reason: {rep.decision_outcome.primary_reason if rep.decision_outcome else 'N/A'}")
     print("=" * 75)
 
 

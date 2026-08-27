@@ -270,7 +270,8 @@ class DecisionOutcome(BaseModel):
     ])
     accepted_hypothesis_id: str | None = None
     residual_uncertainty: float = Field(default=0.0, ge=0.0, le=1.0)
-    decision_confidence: float = Field(default=0.85, ge=0.0, le=1.0)
+    decision_reliability_score: float = Field(default=0.85, ge=0.0, le=1.0, description="Operational heuristic reliability score (not a posterior probability).")
+    decision_confidence: float = Field(default=0.85, ge=0.0, le=1.0, description="Backward-compatible alias for decision_reliability_score.")
     selective_decision_approved: bool = True
 
 
