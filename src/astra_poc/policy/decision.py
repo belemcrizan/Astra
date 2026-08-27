@@ -76,51 +76,30 @@ class InvestigationPolicy:
                 human_review_required=True,
                 accepted_hypothesis_id=leading.id,
                 residual_uncertainty=round(1.0 - confidence, 3),
+                decision_reliability_score=confidence,
                 decision_confidence=confidence,
                 selective_decision_approved=False,
             )
 
-        # 2. Budget Exhaustion with High Uncertainty
-        if budget.is_exhausted() and (leading.evidence_score < self.min_evidence_score or margin < self.margin_threshold):
-            if leading.id == "H1" and leading.evidence_score >= 0.40:
+        # 2. Benign Noise Closure (H1 Survived Falsification / Alternatives Contradicted)
+        if leading.id == "H1" and (leading.evidence_score >= 0.35 or stop_reason in (StopReason.DECISION_SUFFICIENT, StopReason.EXPECTED_VOI_NON_POSITIVE)):
+            alt_scores = [h.evidence_score for h in ranked if h.id != "H1"]
+            max_alt = max(alt_scores) if alt_scores else 0.0
+            if max_alt <= 0.40:
                 return DecisionOutcome(
                     decision=InvestigationDecision.CLOSE,
-                    reason_codes=[DecisionReasonCode.BENIGN_FLUCTUATION_SURVIVED, DecisionReasonCode.BUDGET_EXHAUSTED],
-                    primary_reason=f"Budget exhausted after diagnostic tests; H1 (Transient Noise) remained leading with no confirmed structural shift. Safely closed.",
-                    stop_reason=StopReason.BUDGET_EXHAUSTED,
+                    reason_codes=[DecisionReasonCode.BENIGN_FLUCTUATION_SURVIVED, DecisionReasonCode.TRANSIENT_NOISE_CONFIRMED],
+                    primary_reason=f"Transient statistical fluctuation (H1) confirmed ({leading.evidence_score:.0%} evidence). Routine noise closed safely without false alarm.",
+                    stop_reason=stop_reason,
                     human_review_required=False,
                     accepted_hypothesis_id="H1",
                     residual_uncertainty=round(1.0 - confidence, 3),
+                    decision_reliability_score=confidence,
                     decision_confidence=confidence,
                     selective_decision_approved=selective_approved,
                 )
-            return DecisionOutcome(
-                decision=InvestigationDecision.DEFER,
-                reason_codes=[DecisionReasonCode.BUDGET_EXHAUSTED, DecisionReasonCode.MATERIAL_UNCERTAINTY],
-                primary_reason=f"Budget exhausted ({budget.cost_units_used:.1f}/{budget.max_cost_units} cost units) with top contenders ({leading.id} vs {runner_up.id if runner_up else 'N/A'}) within {margin:.2f} score margin.",
-                stop_reason=StopReason.BUDGET_EXHAUSTED,
-                human_review_required=True,
-                accepted_hypothesis_id=leading.id,
-                residual_uncertainty=round(1.0 - confidence, 3),
-                decision_confidence=confidence,
-                selective_decision_approved=False,
-            )
 
-        # 3. Benign Noise Closure (H1 Survived Falsification)
-        if leading.id == "H1" and leading.evidence_score >= self.min_evidence_score and margin >= self.margin_threshold:
-            return DecisionOutcome(
-                decision=InvestigationDecision.CLOSE,
-                reason_codes=[DecisionReasonCode.BENIGN_FLUCTUATION_SURVIVED, DecisionReasonCode.TRANSIENT_NOISE_CONFIRMED],
-                primary_reason=f"Transient statistical fluctuation (H1) confirmed ({leading.evidence_score:.0%} evidence). Routine noise closed safely.",
-                stop_reason=stop_reason,
-                human_review_required=False,
-                accepted_hypothesis_id="H1",
-                residual_uncertainty=round(1.0 - confidence, 3),
-                decision_confidence=confidence,
-                selective_decision_approved=selective_approved,
-            )
-
-        # 4. Material Escalation (H2, H3, H4 Confirmed)
+        # 3. Material Escalation (H2, H3, H4 Confirmed with high evidence)
         if leading.id in ("H2", "H3", "H4") and leading.evidence_score >= self.min_evidence_score:
             reason_map = {
                 "H2": DecisionReasonCode.REGIME_SHIFT_CONFIRMED,
@@ -136,8 +115,24 @@ class InvestigationPolicy:
                 human_review_required=True,
                 accepted_hypothesis_id=leading.id,
                 residual_uncertainty=round(1.0 - confidence, 3),
+                decision_reliability_score=confidence,
                 decision_confidence=confidence,
                 selective_decision_approved=selective_approved,
+            )
+
+        # 4. Budget Exhaustion with High Uncertainty
+        if budget.is_exhausted() and (leading.evidence_score < self.min_evidence_score or margin < self.margin_threshold):
+            return DecisionOutcome(
+                decision=InvestigationDecision.DEFER,
+                reason_codes=[DecisionReasonCode.BUDGET_EXHAUSTED, DecisionReasonCode.MATERIAL_UNCERTAINTY],
+                primary_reason=f"Budget exhausted ({budget.cost_units_used:.1f}/{budget.max_cost_units} cost units) with top contenders ({leading.id} vs {runner_up.id if runner_up else 'N/A'}) within {margin:.2f} score margin.",
+                stop_reason=StopReason.BUDGET_EXHAUSTED,
+                human_review_required=True,
+                accepted_hypothesis_id=leading.id,
+                residual_uncertainty=round(1.0 - confidence, 3),
+                decision_reliability_score=confidence,
+                decision_confidence=confidence,
+                selective_decision_approved=False,
             )
 
         # 5. Intermediate Watching (Moderate drift)
@@ -150,6 +145,7 @@ class InvestigationPolicy:
                 human_review_required=False,
                 accepted_hypothesis_id=leading.id,
                 residual_uncertainty=round(1.0 - confidence, 3),
+                decision_reliability_score=confidence,
                 decision_confidence=confidence,
                 selective_decision_approved=selective_approved,
             )
@@ -163,6 +159,7 @@ class InvestigationPolicy:
             human_review_required=True,
             accepted_hypothesis_id=leading.id,
             residual_uncertainty=round(1.0 - confidence, 3),
+            decision_reliability_score=confidence,
             decision_confidence=confidence,
             selective_decision_approved=False,
         )

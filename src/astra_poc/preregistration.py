@@ -7,7 +7,7 @@ from typing import Any
 # Preregistered scientific thresholds and decision parameters for ASTRA v0.4.
 # Changing any value creates a new methodology identity and hash.
 PREREGISTRATION: dict[str, Any] = {
-    "methodology_version": "astra-scientific-v0.4.0",
+    "methodology_version": "astra-scientific-v0.4.1",
     "evaluation": {
         "change_tolerance_fraction": 0.035,
         "anomaly_tolerance_points": 2,

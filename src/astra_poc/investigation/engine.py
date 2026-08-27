@@ -131,7 +131,17 @@ class InvestigationEngine:
         
         z = robust_zscore(np.asarray(data.returns, dtype=float))
         anomalies = np.flatnonzero(np.abs(z) >= PREREGISTRATION["signal"]["robust_z_threshold"]).tolist()
-        initial_anomaly_idx = anomalies[0] if anomalies else (len(data.returns) // 2)
+        
+        r_arr = np.asarray(data.returns, dtype=float)
+        cum_var_dev = np.abs(np.cumsum((r_arr - np.mean(r_arr))**2 - np.var(r_arr)))
+        candidate_break_idx = int(np.argmax(cum_var_dev))
+        
+        if 20 <= candidate_break_idx <= len(r_arr) - 20 and cum_var_dev[candidate_break_idx] > 0.1 * np.max(cum_var_dev):
+            initial_anomaly_idx = candidate_break_idx
+        elif anomalies:
+            initial_anomaly_idx = anomalies[0]
+        else:
+            initial_anomaly_idx = len(r_arr) // 2
 
         prov_graph.add_node(
             node_id=f"obs-{initial_anomaly_idx}",
@@ -162,8 +172,6 @@ class InvestigationEngine:
 
         # 9. Bounded Autonomous Investigation Loop with VoI & Rational Stopping
         while not sm.is_terminal and not inv_budget.is_exhausted():
-            inv_budget.steps_used += 1
-
             # A. Evaluate Action Utilities & VoI for all candidate tests
             ranked_hyps = pool.get_ranked_hypotheses()
             utility_estimates = VoIEngine.evaluate_candidates(
@@ -187,6 +195,8 @@ class InvestigationEngine:
                 logger.emit("investigation_stopping_triggered", stop_reason=stop_reason.value, message=stop_msg)
                 break
 
+            inv_budget.steps_used += 1
+
             # C. Select Best Operation (Adaptive Policy or Planner)
             if strategy == "fixed_sequence":
                 # Static ablation policy
@@ -202,7 +212,9 @@ class InvestigationEngine:
                 spec = DSL_OPERATION_SPECS[best_estimate.action]
                 args = {pname: pspec.default for pname, pspec in spec.params.items() if pspec.default is not None}
                 if best_estimate.action == DSLOperationName.COMPARE_WINDOWS and initial_anomaly_idx is not None:
-                    args["center_idx"] = initial_anomaly_idx
+                    min_c = spec.params["center_idx"].min_value or 20
+                    max_c = len(data.returns) - min_c
+                    args["center_idx"] = int(max(min_c, min(initial_anomaly_idx, max_c)))
                 proposed_op = DSLOperation(
                     op_name=best_estimate.action,
                     args=args,
@@ -290,14 +302,23 @@ class InvestigationEngine:
             for cont_hid in result.contradicts:
                 prov_graph.add_edge(source=act_node_id, target=cont_hid, relation="contradicts")
 
-            # G. Check Conclusive Decision Threshold
-            lead = pool.get_ranked_hypotheses()[0]
-            second = pool.get_ranked_hypotheses()[1] if len(pool.get_ranked_hypotheses()) > 1 else lead
-            if lead.evidence_score >= 0.70 and (lead.evidence_score - second.evidence_score) >= 0.30:
-                if sm.can_transition_to(InvestigationState.DECISION_READY):
+            # G. Immediate Stopping Check after evidence update
+            post_ranked = pool.get_ranked_hypotheses()
+            post_candidates = VoIEngine.evaluate_candidates(
+                post_ranked, inv_budget, executed_ops, pool.unknown_score
+            )
+            post_stop, post_stop_reason, _ = StoppingPolicy.evaluate_stop(
+                ranked_hypotheses=post_ranked,
+                utility_estimates=post_candidates,
+                budget=inv_budget,
+                unknown_score=pool.unknown_score,
+                min_evidence_score=self.settings.min_evidence_score,
+            )
+            if post_stop:
+                stop_reason = post_stop_reason
+                if stop_reason == StopReason.DECISION_SUFFICIENT and sm.can_transition_to(InvestigationState.DECISION_READY):
                     sm.transition_to(InvestigationState.DECISION_READY, trigger="conclusive_evidence_threshold_reached")
-                    stop_reason = StopReason.DECISION_SUFFICIENT
-                    break
+                break
 
         # State transition upon loop exit
         if not sm.is_terminal and sm.current_state != InvestigationState.DECISION_READY:

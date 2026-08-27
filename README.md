@@ -1,4 +1,4 @@
-# ASTRA v0.4 — Autonomous Evidence-Driven Investigation Engine
+# ASTRA v0.4.1 — Autonomous Evidence-Driven Investigation Engine
 
 > **ASTRA** turns anomaly alerts into bounded, evidence-backed investigations. Instead of escalating every unusual signal or guessing blindly, ASTRA maintains competing explanations, chooses the next diagnostic experiment based on expected decision utility, attempts to falsify its own hypotheses, recognizes when none of its known models fit, and stops when additional information is no longer worth its cost.
 
@@ -70,104 +70,17 @@ Nominal   Suspicious Anomaly
 
 ## 3. What Makes ASTRA Different
 
-| Traditional Anomaly Detector | Unconstrained AI Agent | ASTRA v0.4 |
+| Traditional Anomaly Detector | Unconstrained AI Agent | ASTRA v0.4.1 |
 |---|---|---|
 | Binary alerts (*"Anomaly at t=720"*). | Generates unverified code with arbitrary execution risks. | **Bounded Rational Investigation**: Evaluates Value of Information before running diagnostic tests. |
 | Zero hypothesis modeling. | Hallucinates confidence scores without falsification. | **Competing Hypotheses & Falsification-First**: Deliberately attempts to disprove candidate explanations. |
-| Static alert rules causing alert fatigue. | Unbounded looping and unpredictable API costs. | **Formal Stopping Policy**: Halts immediately when $\text{VoI} \le 0$ or uncertainty is resolved. |
+| Static alert rules causing alert fatigue. | Unbounded looping and unpredictable API costs. | **Formal Stopping Policy**: Halts immediately when $\text{VoI} \le 0$, sufficiency is reached, or unmodeled regimes dominate. |
 | No explanation of what would change the alert. | Black-box unexplainable output. | **Counterfactual Decision Boundaries**: Explains exact minimal evidence changes to alter decisions. |
 | No cryptographic audit trail. | Ephemeral text chats without replayability. | **Tamper-Evident SHA-256 Chains & Deterministic Replay Engine**. |
 
 ---
 
-## 4. Architecture & Decision Science Layer
-
-```text
-                  +-----------------------------------+
-                  |   Event Stream / Ingestion Source |
-                  |   (Track A Synthetic / Track B)   |
-                  +-----------------+-----------------+
-                                    |
-                                    v
-                  +-----------------------------------+
-                  |         Signal & Regime Gate      |
-                  |  (Robust Z-score / Preliminary)   |
-                  +-----------------+-----------------+
-                                    | Anomaly Trigger
-                                    v
-                  +-----------------------------------+
-                  |    Investigation State Machine    |
-                  |   (Formal Transition Enforcement) |
-                  +-----------------+-----------------+
-                                    |
-            +-----------------------+-----------------------+
-            |                                               |
-            v                                               v
-+-----------------------+                       +-----------------------+
-|    Hypothesis Pool    |                       |   Open-Set Dynamics   |
-| (H1, H2, H3, H4, H_u) |                       |  (Residual Variance)  |
-+-----------+-----------+                       +-----------+-----------+
-            |                                               |
-            +-----------------------+-----------------------+
-                                    |
-                                    v
-                  +-----------------------------------+
-                  |      Decision Science Layer       |
-                  |  (VoI / Utility / Recoverability) |
-                  +-----------------+-----------------+
-                                    |
-                                    v
-                  +-----------------------------------+
-                  |      Formal Stopping Policy       |
-                  | (Sufficiency / VoI <= 0 / Unknown)|
-                  +--------+-----------------+--------+
-                           | Continue        | Stop
-                           v                 v
-            +-----------------------+   +-----------------------+
-            |     Restricted DSL    |   |    Decision Policy    |
-            |     Schema Boundary   |   | (CLOSE/WATCH/ESCALATE)|
-            +-----------+-----------+   +-----------+-----------+
-                        |                           |
-                        v                           v
-            +-----------------------+   +-----------------------+
-            |      DSL Sandbox      |   | Counterfactual Engine |
-            | (Deterministic Exec)  |   |  & Provenance Graph   |
-            +-----------+-----------+   +-----------+-----------+
-                        | Results                   |
-                        v                           v
-            +-----------------------+   +-----------------------+
-            | Falsification Engine  |   |  Tamper-Evident Chain |
-            |  (Disprove & Update)  |   |  (SHA-256 Event Chain)|
-            +-----------+-----------+   +-----------------------+
-```
-
----
-
-## 5. Core Decision Science Capabilities
-
-### A. Adaptive Utility Model & Value of Information (VoI)
-At every step $t$, ASTRA evaluates candidate diagnostic tests $a \in A_t$ by computing:
-$$U(a) = \alpha \cdot \text{EIG}(a) + \beta \cdot \text{EFG}(a) + \gamma \cdot \text{EDR}(a) - \lambda_c C(a) - \lambda_t T(a) - \lambda_r R(a)$$
-where:
-- $\text{EIG}(a)$: **Expected Information Gain** (discrimination power across top hypothesis pair).
-- $\text{EFG}(a)$: **Expected Falsification Gain** (utility of disproving the leading plausible hypothesis).
-- $\text{EDR}(a)$: **Expected Decision Relevance** (divergence between actions implied by competing hypotheses).
-- $C(a)$, $T(a)$, $R(a)$: Computational cost, latency, and operational recoverability penalty.
-
-### B. Functional Open-Set Recognition ($H_{\text{unknown}}$)
-When incoming data exhibits heavy-tailed or non-parametric dynamics that contradict all known models ($H_1 \dots H_4$), $H_{\text{unknown}}$ score is dynamically elevated. ASTRA **refuses forced classification**, halting the investigation with `DEFER` and proposing hypothesis expansions.
-
-### C. Counterfactual Decision Boundaries
-Every decision includes exact counterfactual boundary statements:
-> *"If sub-window contrast had exceeded 0.75, decision would flip from `CLOSE` to `ESCALATE`."*
-> *"If $H_{\text{unknown}}$ exceeded 0.60, decision would flip to `DEFER`."*
-
-### D. Decision Provenance Graph (DAG) & Deterministic Replay
-Investigations construct a complete DAG connecting observations $\rightarrow$ hypotheses $\rightarrow$ candidate utility rankings $\rightarrow$ executed tests $\rightarrow$ evidence items $\rightarrow$ decisions. Reports embed cryptographic SHA-256 hash chains ($H_t = \text{SHA256}(H_{t-1} \parallel \text{event}_t)$) and can be deterministically replayed and verified.
-
----
-
-## 6. Quick Start
+## 4. Quick Start
 
 ### Installation
 
@@ -211,39 +124,54 @@ python -m astra_poc adversarial-demo
 # 7. Run sandboxed multimodal evidence cross-check demo
 python -m astra_poc multimodal-demo
 
-# 8. Compute Quality-Cost Pareto Frontier across investigation policies
+# 8. Run Track B real-world empirical evaluation
+python -m astra_poc real-demo
+
+# 9. Compute Quality-Cost Pareto Frontier across investigation policies
 python -m astra_poc pareto-frontier
 
-# 9. Verify cryptographic integrity of a report artifact
-python -m astra_poc verify-report artifacts/reports/<run_id>.json
-
-# 10. Deterministically replay an investigation
-python -m astra_poc replay artifacts/reports/<run_id>.json
-
-# 11. Run 30-seed scientific investigation benchmark
+# 10. Run 30-seed scientific investigation benchmark
 python -m astra_poc benchmark --seeds 30
 
-# 12. Run full automated test suite (58 tests)
+# 11. Run full automated test suite (65 tests)
 python -m unittest discover -s tests -v
 ```
 
 ---
 
-## 7. Experimental Results & Quality-Cost Pareto Frontier
+## 5. Experimental Results & Quality-Cost Pareto Frontier
 
-### Quality–Cost Pareto Frontier (15 Seeds per Policy across 5 Scenario Families)
+### Quality–Cost Pareto Frontier (15 Seeds per Policy across Benchmark Scenario Families)
 
-| Investigation Policy | Correct Resolution | Mean Cost | P95 Latency | Pareto Efficient |
+| Investigation Policy | Resolution Accuracy | Mean Cost | P95 Latency | Pareto Efficient |
 |---|---:|---:|---:|:---:|
-| **ASTRA Full (Adaptive VoI)** | **26.7%** | **2.97u** | **512.7 ms** | **YES (Dominates)** |
-| **Falsification-Only** | 26.7% | 4.37u | 670.4 ms | No (Dominated by ASTRA) |
-| **Fixed-Sequence (No Adaptation)** | 20.0% | 5.00u | 660.3 ms | No (Dominated by ASTRA) |
+| **Fixed-Sequence Baseline** | 46.7% | 1.20u | 228.7 ms | **YES (Low Cost Boundary)** |
+| **ASTRA Full (Adaptive VoI)** | **66.7%** | **1.80u** | **208.8 ms** | **YES (Dominates Accuracy)** |
+| **Falsification-Only** | 66.7% | 2.27u | 331.8 ms | No (Dominated by ASTRA) |
 
-*Finding: ASTRA's adaptive VoI policy achieves equal or superior accuracy with **40.6% lower compute cost** than fixed-sequence baselines.*
+*Finding: ASTRA's adaptive VoI policy matches the peak 66.7% resolution accuracy of unconstrained falsification while saving **20.7% compute cost** and reducing P95 latency from 331.8 ms to 208.8 ms.*
 
 ---
 
-## 8. Fortified Multi-Case Fleet Isolation
+## 6. Documentation Index
+
+- [Corrective Validation & Root Cause Analysis](docs/V04_1_CORRECTIVE_VALIDATION.md)
+- [Negative Results & Disproven Architectures](docs/NEGATIVE_RESULTS.md)
+- [Claims & Evidence Alignment Matrix](docs/CLAIMS_AND_EVIDENCE.md)
+- [Architecture & Decision Science Layer](docs/ARCHITECTURE_V04.md)
+- [Non-Technical Guide](docs/NON_TECHNICAL_GUIDE.md)
+- [Judging Evidence Matrix](docs/JUDGING_EVIDENCE.md)
+- [Video Demo Script](docs/DEMO_SCRIPT.md)
+- [Dataset Cards (Track A & B + 10 Families)](docs/DATASET_CARD.md)
+- [STRIDE Threat Model](docs/THREAT_MODEL_STRIDE.md)
+- [Threats to Validity](docs/THREATS_TO_VALIDITY.md)
+- [Scientific Validation Protocol](docs/VALIDATION_PROTOCOL.md)
+- [Preregistration Identity](PREREGISTRATION.md)
+- [Google Cloud Deployment Guide](deploy/README.md)
+
+---
+
+## 7. Fortified Multi-Case Fleet Isolation
 
 For enterprise deployment, ASTRA provides isolated investigation boundaries:
 - **Tenant & Case Isolation**: `CaseIsolationManager` guards against cross-tenant or cross-case data leakage.
@@ -252,7 +180,7 @@ For enterprise deployment, ASTRA provides isolated investigation boundaries:
 
 ---
 
-## 9. Google Cloud Run Deployment
+## 8. Google Cloud Run Deployment
 
 ASTRA is containerized and ready for **Google Cloud Run**:
 
@@ -265,24 +193,7 @@ See [`deploy/README.md`](deploy/README.md) for full deployment instructions, Sec
 
 ---
 
-## 10. Documentation Index
-
-- [Architecture & Decision Science Layer](docs/ARCHITECTURE_V04.md)
-- [Non-Technical Guide](docs/NON_TECHNICAL_GUIDE.md)
-- [Judging Evidence Matrix](docs/JUDGING_EVIDENCE.md)
-- [Video Demo Script](docs/DEMO_SCRIPT.md)
-- [Dataset Cards (Track A & B + 10 Families)](docs/DATASET_CARD.md)
-- [STRIDE Threat Model](docs/THREAT_MODEL_STRIDE.md)
-- [Threats to Validity](docs/THREATS_TO_VALIDITY.md)
-- [Scientific Validation Protocol](docs/VALIDATION_PROTOCOL.md)
-- [Agents & Statistical Methods](docs/AGENTS_AND_METHODS.md)
-- [Migration Guide v0.3 $\rightarrow$ v0.4](docs/MIGRATION_V03_TO_V04.md)
-- [Preregistration Identity](PREREGISTRATION.md)
-- [Google Cloud Deployment Guide](deploy/README.md)
-
----
-
-## 11. Limitations & Epistemic Honesty
+## 9. Limitations & Epistemic Honesty
 
 1. **Synthetic vs Real**: Synthetic benchmark results establish statistical sanity under controlled generative assumptions, not external real-world accuracy.
 2. **Heuristic Scoring**: `evidence_score` is an operational ranking metric, not a calibrated probability.

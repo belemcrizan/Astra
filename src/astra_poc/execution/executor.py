@@ -112,21 +112,41 @@ class DSLExecutor:
                 score = mean_shift + 1.8 * vol_shift
                 is_shift = score >= 0.75
 
-                ev = EvidenceItem(
-                    code="WINDOW_CONTRAST",
-                    statement=f"Sub-window comparison at t={c} yielded contrast score {score:.3f} (mean shift={mean_shift:.3f}, vol shift={vol_shift:.3f}).",
-                    value=round(score, 4),
-                    threshold=0.75,
-                    passed=is_shift,
-                    hypotheses_discriminated=["H1", "H2", "H3"],
-                    why_selected=operation.reasoning,
-                    cost_units=operation.cost_units,
-                )
-                supports = ["H2", "H3"] if is_shift else ["H1"]
-                contradicts = ["H1"] if is_shift else ["H2", "H3"]
+                # Detect non-parametric heavy-tailed process outside Gaussian assumptions
+                combined_window = np.concatenate([left, right])
+                kurtosis = float(np.mean(((combined_window - combined_window.mean()) / (combined_window.std() + 1e-12))**4) - 3.0)
+                is_heavy_tailed = kurtosis > 8.0
+
+                if is_heavy_tailed:
+                    ev = EvidenceItem(
+                        code="HEAVY_TAIL_EXCESS",
+                        statement=f"Sub-window at t={c} exhibits extreme excess kurtosis {kurtosis:.2f} (> 8.0), violating Gaussian/AR assumptions.",
+                        value=round(kurtosis, 2),
+                        threshold=8.0,
+                        passed=True,
+                        hypotheses_discriminated=["H1", "H2", "H_unknown"],
+                        why_selected=operation.reasoning,
+                        cost_units=operation.cost_units,
+                    )
+                    supports = ["H_unknown"]
+                    contradicts = ["H1", "H2"]
+                else:
+                    ev = EvidenceItem(
+                        code="WINDOW_CONTRAST",
+                        statement=f"Sub-window comparison at t={c} yielded contrast score {score:.3f} (mean shift={mean_shift:.3f}, vol shift={vol_shift:.3f}).",
+                        value=round(score, 4),
+                        threshold=0.75,
+                        passed=is_shift,
+                        hypotheses_discriminated=["H1", "H2", "H3"],
+                        why_selected=operation.reasoning,
+                        cost_units=operation.cost_units,
+                    )
+                    supports = ["H2", "H3"] if is_shift else ["H1"]
+                    contradicts = ["H1"] if is_shift else ["H2", "H3"]
+
                 return self._build_result(
                     operation,
-                    {"center": c, "contrast_score": score, "mean_shift": mean_shift, "vol_shift": vol_shift},
+                    {"center": c, "contrast_score": score, "mean_shift": mean_shift, "vol_shift": vol_shift, "kurtosis": kurtosis},
                     [ev],
                     supports,
                     contradicts,
