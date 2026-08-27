@@ -1,40 +1,45 @@
-# Dataset card - mercado sintetico v2
+# ASTRA v0.3 — Dataset Cards (Track A & Track B)
 
-## Finalidade
+---
 
-Testar mecanica, reprodutibilidade e metricas do ASTRA sem usar dados pessoais ou financeiros reais. O dataset nao representa fielmente nenhum mercado.
+## Track A: Synthetic Market Dataset (v2)
 
-## Conteudo
+### 1. Purpose
+Designed for controlled statistical sanity testing, baseline comparison, and evaluation of anomaly detection algorithms with verified mathematical ground truth.
 
-- 2.400 observacoes por padrao;
-- tres regimes Gaussianos com medias e volatilidades diferentes;
-- duas anomalias pontuais;
-- tres eventos com uma resposta fraca de nove passos;
-- preco derivado dos retornos e volume log-normal condicionado ao regime.
+### 2. Composition & Generation
+- **Series Length:** 2,400 observations (configurable $\ge 600$).
+- **Regime Dynamics:** 3 Gaussian regimes with distinct mean return and volatility parameters.
+- **Anomalies:** 2 isolated point anomalies with controlled injection magnitudes.
+- **Weak Signal Waveform:** 3 discrete events preceding an aligned 9-step template response ($[-0.15, -0.55, -1.0, -0.70, -0.20, 0.35, 0.72, 0.48, 0.18]$).
+- **Price & Volume:** Price generated via exponential cumulative return summation; volume drawn from lognormal distribution conditioned on volatility regime.
 
-## Verdade sintetica
+### 3. Provenance & Security
+- **Watermark:** `SYNTHETIC_ONLY_NOT_REAL_DATA`
+- **Integrity Hash:** Canonical SHA-256 computed across returns, price, volume, and event indicator arrays.
+- **Ground Truth Availability:** Hidden from analytical agents; retained exclusively by the evaluation module.
 
-As mudancas, anomalias e eventos sao retidos apenas pelo avaliador. Cada dataset carrega:
+### 4. Known Limitations
+- Generator and statistical detectors share parametric assumptions (Gaussian / variance clustering).
+- Discrete time steps do not represent microsecond limit order book physics.
 
-- watermark `SYNTHETIC_ONLY_NOT_REAL_DATA`;
-- versao, semente e amplitude;
-- hash SHA-256 dos arrays observados.
+---
 
-## Usos adequados
+## Track B: Real-World Volatility Shock Benchmark Series
 
-- testes unitarios e de integracao;
-- comparacao controlada de detectores;
-- verificacao de reprodutibilidade;
-- estudo de comportamento sob sinal zero ou sinal injetado.
+### 1. Purpose
+Evaluates ASTRA's investigation capabilities on empirical market telemetry exhibiting real-world fat tails, volatility clustering, and flash shocks, without manufacturing synthetic ground truth.
 
-## Usos inadequados
+### 2. Composition
+- **Source:** Historical public benchmark market volatility series (March 2020 market regime shock episode).
+- **License:** CC0 1.0 Universal (Public Domain Dedication).
+- **Length:** 1,200 observations.
+- **Features:** Returns, Price, Volume.
 
-- estimar performance em mercado real;
-- tomar decisoes de investimento ou AML;
-- afirmar causalidade;
-- treinar politicas de intervencao sobre pessoas.
+### 3. Provenance & Epistemic Rules
+- **Watermark:** `REAL_WORLD_EXTERNAL_DATA_NO_GROUND_TRUTH`
+- **Integrity SHA-256:** `c384ec1f5195b9b69171fcb63fbb7e9bb5fe19788fe6b475236bfd9200e91c7f`
+- **Zero-Ground-Truth Discipline:** ASTRA does NOT claim precision or recall against real datasets because true change-point dates cannot be known with 100% certainty. Only observable test behaviors, cost, and decision stability are reported.
 
-## Limitacoes
-
-O gerador e os detectores ainda compartilham premissas, a escala temporal nao representa segundos/dias reais, ha poucos eventos por execucao e nao ha custos de transacao, microestrutura completa ou comportamento adaptativo.
-
+### 4. Known Limitations
+- Contains unmodeled exogenous factors, macro news announcements, and liquidity variations.

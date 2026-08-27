@@ -1,7 +1,7 @@
 Metadata-Version: 2.4
 Name: astra-poc
-Version: 0.2.0
-Summary: POC local, segura e reproduzivel para sinais fracos e mudancas de regime
+Version: 0.3.0
+Summary: Evidence-Driven Autonomous Investigation Engine for Weak Signals and Regime Changes (POC)
 Requires-Python: >=3.12
 Description-Content-Type: text/markdown
 Requires-Dist: numpy>=2.0
@@ -12,6 +12,8 @@ Requires-Dist: fastapi>=0.115; extra == "api"
 Requires-Dist: uvicorn[standard]>=0.30; extra == "api"
 Provides-Extra: dev
 Requires-Dist: pytest>=8.0; extra == "dev"
+Provides-Extra: cloud
+Requires-Dist: google-genai>=0.1.0; extra == "cloud"
 
 # ASTRA POC v0.2
 

@@ -2,9 +2,10 @@ services:
   astra:
     build: .
     ports:
-      - "8000:8000"
+      - "8080:8080"
     environment:
+      PORT: "8080"
       ASTRA_OUTPUT_DIR: /app/artifacts
+      ASTRA_USE_LLM: "false"
     volumes:
       - ./artifacts:/app/artifacts
-

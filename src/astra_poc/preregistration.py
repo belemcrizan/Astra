@@ -4,11 +4,10 @@ import hashlib
 import json
 from typing import Any
 
-
 # Thresholds are code-versioned and hashed into every report. Changing a value
 # creates a different methodology identity and must be reported explicitly.
 PREREGISTRATION: dict[str, Any] = {
-    "methodology_version": "astra-scientific-v0.2.0",
+    "methodology_version": "astra-scientific-v0.3.0",
     "evaluation": {
         "change_tolerance_fraction": 0.035,
         "anomaly_tolerance_points": 2,
@@ -39,10 +38,19 @@ PREREGISTRATION: dict[str, Any] = {
         "pelt": {"minimum_segment": 80, "bic_multiplier": 3.0},
         "bocpd": {"hazard_lambda": 500, "minimum_mode_drop": 40, "minimum_separation": 240},
     },
+    "investigation": {
+        "min_evidence_score": 0.60,
+        "max_steps": 5,
+        "max_tests": 6,
+        "max_cost_units": 10.0,
+        "state_machine": "formal_bounded_lifecycle",
+        "dsl_grammar": "astra_restricted_dsl_v1",
+        "competing_hypotheses": ["H1", "H2", "H3", "H4", "H_unknown"],
+        "falsification_first": True,
+    },
 }
 
 
 def preregistration_hash() -> str:
     canonical = json.dumps(PREREGISTRATION, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
-

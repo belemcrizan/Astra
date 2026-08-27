@@ -1,28 +1,31 @@
-# Ameacas a validade
+# ASTRA v0.3 — Scientific Threats to Validity
 
-## Validade interna
+---
 
-- Detector e gerador podem compartilhar premissas de forma/volatilidade.
-- Escolhas de threshold podem favorecer o dataset, apesar do pre-registro.
-- Baselines possuem sensibilidades diferentes aos hiperparametros.
-- H1 usa confirmacao algorítmica no mesmo dataset; isso nao cria uma fonte de evidencia independente.
+## 1. Internal Validity
+- **Shared Assumptions:** The synthetic generator and change-point detectors share Gaussian and variance-jump modeling assumptions.
+- **Hyperparameter Sensitivity:** Preregistered baselines (CUSUM, Page-Hinkley, PELT, BOCPD) have differing sensitivities to threshold tuning.
+- **Algorithmic Co-dependence:** Independent confirmation on the same single time series does not constitute a completely independent empirical data source.
 
-Mitigacao: thresholds versionados, parametros publicados, pareamento um-para-um, sinal zero para H2 e resultados completos inclusive quando um baseline vence.
+**Mitigations:** Thresholds are preregistered and SHA-256 hashed; one-to-one temporal matching is strictly enforced; PELT baseline victories over ASTRA are published transparently rather than hidden.
 
-## Validade externa
+---
 
-Trinta sementes do mesmo gerador nao representam mercados, AML ou mensagens reais. Nenhuma metrica deve ser extrapolada para producao.
+## 2. External Validity
+- **Synthetic Representativeness:** 30 seeds drawn from a controlled synthetic generator do not reflect the full complexity, microstructure, or regime diversity of live financial markets or distributed system telemetry.
+- **Epistemic Isolation:** Performance metrics obtained on Track A (synthetic) must never be extrapolated to claim real-world production accuracy.
 
-Mitigacao futura: familias Markov-switching, GARCH, jump-diffusion, Hawkes, caudas pesadas, drift gradual, missing data e dados autorizados em shadow mode.
+**Mitigations:** Track B (Real-World Benchmark) is maintained as an isolated evaluation track with explicit zero-ground-truth labeling discipline.
 
-## Validade de construto
+---
 
-- `evidence_score` e heuristico, nao probabilidade calibrada.
-- Tolerancia em pontos nao possui unidade economica.
-- Stacking mede associacao alinhada, nao efeito causal.
-- Susceptibilidade e entropia sao observaveis exploratorios.
+## 3. Construct Validity
+- **Heuristic Evidence Score:** `evidence_score` is an operational heuristic ranking, not a calibrated Bayesian posterior probability.
+- **Tolerance Windows:** Time-point matching tolerances (e.g., 3.5% of series length) do not have direct economic loss-function equivalence.
+- **Stacking Association vs Causality:** Temporal null stacking measures statistical alignment under circular time-shift; it does not establish causal identification.
 
-## Validade de conclusao
+---
 
-ICs de Wilson refletem contagens finitas, nao incerteza sobre novos mundos. Multiplicidade esta controlada apenas para a unica H2 atual. Comparacoes futuras exigem correcao Benjamini-Hochberg ou procedimento equivalente.
-
+## 4. Conclusion Validity
+- **Wilson Confidence Intervals:** Wilson 95% intervals quantify statistical uncertainty due to finite sample size within the generator; they do not quantify uncertainty about unobserved data distributions.
+- **Multiple Testing:** Multiple hypothesis tests in the investigation loop are tracked and recorded in the audit trail.

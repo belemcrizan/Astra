@@ -1,3 +1,3 @@
-"""ASTRA POC: Agentic Signal, Transition & Response Analysis."""
+"""ASTRA v0.3: Autonomous Evidence-Driven Investigation of Signals and Regimes."""
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
