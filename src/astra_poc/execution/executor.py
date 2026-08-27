@@ -16,7 +16,7 @@ class DSLExecutor:
 
     def __init__(self, data: Any):
         self.data = data
-        self.returns = np.asarray(data.returns, dtype=float)
+        self.returns = np.asarray(getattr(data, "returns", data), dtype=float)
         self.price = getattr(data, "price", None)
         self.volume = getattr(data, "volume", None)
         self.event_indicator = getattr(data, "event_indicator", None)
