@@ -54,8 +54,8 @@ class AgentInvestigateRequest(BaseModel):
 async def health() -> dict[str, Any]:
     runtime_env = detect_runtime()
     return {
-        "status": "ok",
-        "service": "astra",
+        "status": "healthy",
+        "service": "astra-investigation-service",
         "version": "0.4.1",
         "runtime": runtime_env,
         "agent_framework": "Google ADK",
@@ -67,11 +67,11 @@ async def health() -> dict[str, Any]:
 async def get_version() -> dict[str, Any]:
     return {
         "version": "0.4.1",
-        "service": "astra",
+        "service": "astra-investigation-service",
         "runtime": detect_runtime(),
         "preregistration_sha256": "1b2eeaeb0a3f842cb4afaab755bd27fee469b818e05298bdbfd64d73ac0975a4",
         "agent_framework": "Google ADK",
-        "gemini_model": os.getenv("ASTRA_GEMINI_MODEL", "gemini-2.5-flash"),
+        "gemini_model": os.getenv("ASTRA_GEMINI_MODEL", "gemini-3.5-flash-lite"),
     }
 
 

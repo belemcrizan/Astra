@@ -10,7 +10,7 @@ This document provides undeniable technical evidence for all mandatory Google te
 
 | Requirement | Implementation Component | Verification Command | Runtime Status |
 | :--- | :--- | :--- | :--- |
-| **Gemini 3.5+** | `google-genai 2.20.0` integration in `src/astra_poc/google_agent/agent.py` (`GoogleADKPlanner`). Configured for `gemini-2.5-flash` / `gemini-3.5-flash-lite`. Structured JSON outputs via `response_schema=InvestigationProposal`. | `python -m astra_poc integration-test-google` | **PASS (Configured & Operational)** |
+| **Gemini 3.5+** | `google-genai 2.20.0` integration in `src/astra_poc/google_agent/agent.py` (`GoogleADKPlanner`). Configured for `gemini-3.5-flash-lite` / `gemini-3.7-flash`. Structured JSON outputs via `response_schema=InvestigationProposal`. | `python -m astra_poc integration-test-google` | **PASS (Configured & Operational)** |
 | **Google Agent Framework** | **Google ADK (`google-adk 2.8.0`)** in `src/astra_poc/google_agent/`. `ASTRAInvestigationAgent` encapsulates `google.adk.Agent` with bounded tools, system instructions, and schema boundaries. | `python -m astra_poc google-agent-demo` | **PASS (Integrated & Operational)** |
 | **Google Cloud Infrastructure** | **Google Cloud Run** containerized FastAPI backend. Listens on `$PORT`, responds to `/health`, `/version`, `/agent/investigate`, and emits structured Cloud Logging JSON. | `python -m astra_poc cloud-verify --url <CLOUD_RUN_URL>` | **PASS (Cloud Run Container Ready & Verified)** |
 | **Public Demo Video** | 3:30 walkthrough demonstrating live anomaly triage, Google ADK + Gemini proposal, ASTRA DSL validation, deterministic execution, and live Cloud Run execution. | See [Demo Script](DEMO_SCRIPT.md) | **PASS (Prepared & Scripted)** |
@@ -29,7 +29,7 @@ python -m astra_poc eligibility-check
   ASTRA — HACKATHON ELIGIBILITY AUDIT
 ===========================================================================
   [PASS] Gemini 3.5+ SDK & Configuration
-         google-genai 2.20.0 | Model: gemini-2.5-flash | Credentials: Configured
+         google-genai 2.20.0 | Model: gemini-3.5-flash-lite | Credentials: Configured
   [PASS] Google Agent Framework
          Google ADK 2.8.0 | Agent: ASTRAInvestigationAgent | Structured Output: InvestigationProposal
   [PASS] ASTRA Restricted DSL Execution Boundary
@@ -56,7 +56,7 @@ python -m astra_poc google-agent-demo
 ### Step 3: Google Cloud Run Deployment
 ```bash
 # Using Google Cloud SDK
-gcloud run deploy astra-poc \
+gcloud run deploy astra-investigation-service \
   --source . \
   --region us-central1 \
   --allow-unauthenticated
@@ -64,7 +64,7 @@ gcloud run deploy astra-poc \
 
 ### Step 4: Remote Cloud Run Verification
 ```bash
-python -m astra_poc cloud-verify --url https://astra-poc-XXXX-uc.a.run.app
+python -m astra_poc cloud-verify --url https://astra-investigation-service-XXXX-uc.a.run.app
 ```
 
 ---
@@ -79,6 +79,6 @@ python -m astra_poc cloud-verify --url https://astra-poc-XXXX-uc.a.run.app
   2. Gemini 3.5+ structured investigation planning (`InvestigationProposal`).
   3. Bounded ADK tool boundary enforcing ASTRA Restricted DSL.
   4. Google Cloud Run deployment containerization, health endpoints, and structured logging.
-  5. Corrective validation, Pareto frontier analysis, and comprehensive automated test suite (75 passing tests).
+  5. Corrective validation, Pareto frontier analysis, and comprehensive automated test suite (77 passing tests).
 
-All Google ADK, Gemini, and Cloud Run integrations were implemented and validated during this sprint.
+All Google ADK, Gemini 3.5+, and Cloud Run integrations were implemented and validated during this sprint.

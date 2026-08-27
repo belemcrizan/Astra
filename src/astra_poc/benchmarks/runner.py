@@ -117,3 +117,8 @@ class InvestigationBenchmarkRunner:
             "runs_per_policy": seeds,
             "pareto_frontier": pareto_table,
         }
+
+    async def run_pareto_frontier(self, seeds: int = 15) -> list[dict[str, Any]]:
+        """Convenience method returning the Pareto frontier table."""
+        res = await self.run_investigation_ablations(seeds=seeds)
+        return res["pareto_frontier"]

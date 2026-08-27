@@ -100,6 +100,13 @@ class FakeInvestigationPlanner(BaseInvestigationPlanner):
         )
 
 
+def is_eligible_gemini_model(model: str) -> bool:
+    """Verifies that the configured model satisfies the Gemini 3.5+ hackathon requirement."""
+    m = model.lower()
+    # Eligible: gemini-3.5-*, gemini-3.7-*, gemini-3.1-*, or generic gemini-3-*
+    return m.startswith("gemini-3.") or m.startswith("gemini-3-") or "3.5" in m or "3.7" in m
+
+
 class GoogleADKPlanner(BaseInvestigationPlanner):
     """Real Google ADK + Gemini 3.5+ Planner using structured outputs and tool boundaries."""
 
@@ -111,12 +118,24 @@ class GoogleADKPlanner(BaseInvestigationPlanner):
         project: str | None = None,
         location: str | None = None,
     ) -> None:
-        self.model = model or os.getenv("ASTRA_GEMINI_MODEL", "gemini-2.5-flash")
+        self.model = model or os.getenv("ASTRA_GEMINI_MODEL", "gemini-3.5-flash-lite")
         self.api_key = api_key or os.getenv("GEMINI_API_KEY")
         self.use_vertex = use_vertex or (os.getenv("GOOGLE_GENAI_USE_VERTEXAI", "").lower() == "true")
         self.project = project or os.getenv("GOOGLE_CLOUD_PROJECT")
         self.location = location or os.getenv("GOOGLE_CLOUD_LOCATION", "us-central1")
         self._client: Any = None
+
+        mode = os.getenv("ASTRA_MODE", "local").lower()
+        if mode == "hackathon":
+            if not is_eligible_gemini_model(self.model):
+                raise ValueError(
+                    f"Ineligible model '{self.model}' for hackathon mode. "
+                    "Hackathon requires Gemini 3.5 or newer (e.g., 'gemini-3.5-flash-lite', 'gemini-3.7-flash')."
+                )
+            if not (self.api_key or self.use_vertex or self.project):
+                raise ValueError(
+                    "Hackathon mode requires active Google credentials (GEMINI_API_KEY or GOOGLE_GENAI_USE_VERTEXAI=true)."
+                )
 
     def _get_client(self) -> Any:
         if self._client is None and _GOOGLE_AVAILABLE:
@@ -127,6 +146,7 @@ class GoogleADKPlanner(BaseInvestigationPlanner):
             else:
                 self._client = genai.Client()
         return self._client
+
 
     async def plan_next_action(
         self,
@@ -187,13 +207,18 @@ class ASTRAInvestigationAgent:
         planner: BaseInvestigationPlanner | None = None,
         model: str | None = None,
         max_turns: int = 5,
+        mode: str | None = None,
     ) -> None:
-        self.model = model or os.getenv("ASTRA_GEMINI_MODEL", "gemini-2.5-flash")
+        self.model = model or os.getenv("ASTRA_GEMINI_MODEL", "gemini-3.5-flash-lite")
         self.max_turns = max_turns
+        self.mode = mode or os.getenv("ASTRA_MODE", "local").lower()
         
         # Initialize planner
         if planner is not None:
             self.planner = planner
+        elif self.mode == "hackathon":
+            # Fail closed in hackathon mode
+            self.planner = GoogleADKPlanner(model=self.model)
         elif os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_GENAI_USE_VERTEXAI") == "true":
             self.planner = GoogleADKPlanner(model=self.model)
         else:

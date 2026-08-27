@@ -111,7 +111,7 @@ Structured JSON logs are emitted on `sys.stdout` adhering to Google Cloud Loggin
   "case_id": "cloud-case-hero-42",
   "runtime": "Google Cloud Run",
   "agent_framework": "Google ADK",
-  "model": "gemini-2.5-flash",
+  "model": "gemini-3.5-flash-lite",
   "executed_ops": ["COMPARE_WINDOWS", "RUN_PELT"],
   "stop_reason": "DECISION_SUFFICIENT",
   "decision": "ESCALATE",

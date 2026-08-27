@@ -146,8 +146,8 @@ class GoogleAgentAndCloudTests(unittest.TestCase):
         res_h = client.get("/health")
         self.assertEqual(res_h.status_code, 200)
         h_data = res_h.json()
-        self.assertEqual(h_data["status"], "ok")
-        self.assertEqual(h_data["service"], "astra")
+        self.assertEqual(h_data["status"], "healthy")
+        self.assertEqual(h_data["service"], "astra-investigation-service")
         self.assertEqual(h_data["version"], "0.4.1")
         self.assertEqual(h_data["agent_framework"], "Google ADK")
 
@@ -156,7 +156,9 @@ class GoogleAgentAndCloudTests(unittest.TestCase):
         self.assertEqual(res_v.status_code, 200)
         v_data = res_v.json()
         self.assertEqual(v_data["version"], "0.4.1")
+        self.assertEqual(v_data["service"], "astra-investigation-service")
         self.assertEqual(v_data["agent_framework"], "Google ADK")
+        self.assertEqual(v_data["gemini_model"], "gemini-3.5-flash-lite")
         self.assertEqual(v_data["preregistration_sha256"], "1b2eeaeb0a3f842cb4afaab755bd27fee469b818e05298bdbfd64d73ac0975a4")
 
     def test_fastapi_agent_investigate_endpoint(self):
@@ -179,6 +181,20 @@ class GoogleAgentAndCloudTests(unittest.TestCase):
         with patch.dict(os.environ, {"K_SERVICE": "astra-poc", "K_REVISION": "astra-poc-00001"}):
             self.assertEqual(detect_runtime(), "Google Cloud Run")
             self.assertEqual(ASTRAInvestigationAgent.detect_runtime(), "Google Cloud Run")
+
+    def test_hackathon_mode_fails_closed_when_ineligible_model(self):
+        """Hackathon Mode: Fails closed when model is older than Gemini 3.5."""
+        with patch.dict(os.environ, {"ASTRA_MODE": "hackathon", "ASTRA_GEMINI_MODEL": "gemini-2.5-flash", "GEMINI_API_KEY": "test-key"}):
+            with self.assertRaises(ValueError) as ctx:
+                ASTRAInvestigationAgent(mode="hackathon", model="gemini-2.5-flash")
+            self.assertIn("Ineligible model", str(ctx.exception))
+
+    def test_hackathon_mode_fails_closed_when_credentials_missing(self):
+        """Hackathon Mode: Fails closed when credentials are missing."""
+        with patch.dict(os.environ, {"ASTRA_MODE": "hackathon", "ASTRA_GEMINI_MODEL": "gemini-3.5-flash-lite"}, clear=True):
+            with self.assertRaises(ValueError) as ctx:
+                ASTRAInvestigationAgent(mode="hackathon", model="gemini-3.5-flash-lite")
+            self.assertIn("requires active Google credentials", str(ctx.exception))
 
 
 if __name__ == "__main__":

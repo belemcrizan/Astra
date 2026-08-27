@@ -224,7 +224,7 @@ async def execute_integration_test_google() -> None:
     try:
         from google import genai
         client = genai.Client() if has_key else genai.Client(vertexai=True)
-        model = os.getenv("ASTRA_GEMINI_MODEL", "gemini-2.5-flash")
+        model = os.getenv("ASTRA_GEMINI_MODEL", "gemini-3.5-flash-lite")
         
         print(f"Connecting to Google Gemini API (model: {model})...")
         resp = client.models.generate_content(
@@ -266,6 +266,7 @@ async def execute_cloud_verify(url: str) -> None:
         assert res_h.status_code == 200, f"Health returned {res_h.status_code}"
         h_data = res_h.json()
         print(f"[PASS] GET /health (200 OK)")
+        print(f"       Status: {h_data.get('status')} | Service: {h_data.get('service')}")
         print(f"       Runtime: {h_data.get('runtime')} | Infrastructure: {h_data.get('cloud_infrastructure')}")
 
         # 2. Version check
@@ -274,6 +275,7 @@ async def execute_cloud_verify(url: str) -> None:
         v_data = res_v.json()
         print(f"[PASS] GET /version (200 OK)")
         print(f"       Version: {v_data.get('version')} | SHA-256: {v_data.get('preregistration_sha256')[:16]}...")
+        print(f"       Gemini Model: {v_data.get('gemini_model')}")
 
         # 3. Agent Investigation
         payload = {"scenario": "hero", "seed": 42, "max_turns": 3}
@@ -306,7 +308,7 @@ async def execute_eligibility_check(url: str = "") -> None:
     # 1. Gemini 3.5+ Check
     has_key = bool(os.getenv("GEMINI_API_KEY"))
     use_vertex = os.getenv("GOOGLE_GENAI_USE_VERTEXAI", "").lower() == "true"
-    model_name = os.getenv("ASTRA_GEMINI_MODEL", "gemini-2.5-flash")
+    model_name = os.getenv("ASTRA_GEMINI_MODEL", "gemini-3.5-flash-lite")
     checks.append((
         "Gemini 3.5+ SDK & Configuration",
         "PASS",
@@ -517,10 +519,9 @@ async def execute_pareto_frontier() -> None:
     runner = InvestigationBenchmarkRunner()
     frontier = await runner.run_pareto_frontier(seeds=15)
     print(f"{'Policy':<25} | {'Accuracy':<10} | {'Mean Cost':<10} | {'P95 Latency':<12} | {'Pareto Optimal'}")
-    print("-" * 75)
-    for p in frontier["frontier"]:
-        opt_str = "**YES**" if p["is_pareto_optimal"] else "No"
-        print(f"{p['policy']:<25} | {p['resolution_accuracy']:>8.1f}% | {p['mean_cost_units']:>9.2f}u | {p['latency_p95_ms']:>9.1f} ms | {opt_str}")
+    for p in frontier:
+        opt_str = "**YES**" if p.get("pareto_efficient") else "No"
+        print(f"{p['policy']:<25} | {p['accuracy']:>8.1f}% | {p['mean_cost']:>9.2f}u | {p['p95_latency_ms']:>9.1f} ms | {opt_str}")
     print("=" * 75)
 
 

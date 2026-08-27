@@ -1,6 +1,6 @@
-# Google Cloud Deployment Guide — ASTRA v0.3
+# Google Cloud Deployment Guide — ASTRA v0.4.1
 
-This guide provides reproducible deployment steps for running the **ASTRA v0.3 Investigation Service** on **Google Cloud Run**.
+This guide provides reproducible deployment steps for running the **ASTRA v0.4.1 Investigation Service** powered by **Google ADK** and **Gemini 3.5+** on **Google Cloud Run**.
 
 ---
 
@@ -8,20 +8,25 @@ This guide provides reproducible deployment steps for running the **ASTRA v0.3 I
 
 ```text
   [ Client / Judge CLI / HTTP Request ]
-                    |
-                    v
+                    │
+                    ▼
           [ Google Cloud Run ]
-      (astra-investigation-service)
-                    |
-          +---------+---------+
-          |                   |
-          v                   v
-   [ Fast Investigation ]  [ Gemini API / Vertex AI ] (Optional)
-    Deterministic Sandbox    Secret Manager / Env Var
-          |
-          v
-   [ Telemetry / Report Artifacts ]
-    Cloud Storage / Local Ephemeral
+       (astra-investigation-service)
+                    │
+                    ▼
+     [ Google ADK Investigation Agent ]
+              (google-adk 2.8.0)
+                    │
+                    ▼
+       [ Gemini 3.5+ Planning Agent ]
+       (gemini-3.5-flash-lite / 3.7)
+                    │
+                    ▼
+       [ ASTRA Restricted DSL Sandbox ]
+         (DSLValidator + DSLExecutor)
+                    │
+                    ▼
+    [ Telemetry / JSON Cloud Logging ]
 ```
 
 ---
@@ -32,11 +37,12 @@ This guide provides reproducible deployment steps for running the **ASTRA v0.3 I
 - A GCP project with billing enabled:
   ```bash
   gcloud auth login
+  gcloud auth application-default login
   gcloud config set project YOUR_PROJECT_ID
   ```
 - Enable required Google Cloud APIs:
   ```bash
-  gcloud services enable run.googleapis.com cloudbuild.googleapis.com secretmanager.googleapis.com
+  gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com aiplatform.googleapis.com secretmanager.googleapis.com
   ```
 
 ---
@@ -55,31 +61,25 @@ This guide provides reproducible deployment steps for running the **ASTRA v0.3 I
 
 ---
 
-## 4. Manual Step-by-Step Deployment
+## 4. Direct Source Deployment via gcloud
 
-### Step A: Build & Push Container Image
-```bash
-gcloud builds submit --tag gcr.io/YOUR_PROJECT_ID/astra-investigation-service:v0.3.0 .
-```
-
-### Step B: Deploy to Cloud Run
 ```bash
 gcloud run deploy astra-investigation-service \
-    --image gcr.io/YOUR_PROJECT_ID/astra-investigation-service:v0.3.0 \
+    --source . \
     --region us-central1 \
     --platform managed \
     --allow-unauthenticated \
     --memory 1Gi \
     --cpu 1 \
     --timeout 60s \
-    --set-env-vars ASTRA_OUTPUT_DIR=/tmp/artifacts,ASTRA_USE_LLM=false
+    --set-env-vars ASTRA_OUTPUT_DIR=/tmp/artifacts,ASTRA_GEMINI_MODEL=gemini-3.5-flash-lite,GOOGLE_CLOUD_PROJECT=YOUR_PROJECT_ID,GOOGLE_CLOUD_LOCATION=us-central1,GOOGLE_GENAI_USE_VERTEXAI=true
 ```
 
 ---
 
-## 5. Optional: Enabling Google Gemini API Integration
+## 5. Gemini API Key Configuration (Optional Alternative to Vertex AI ADC)
 
-To enable Gemini LLM structured investigation planning via Google Secret Manager:
+To use a direct Gemini API key via Secret Manager instead of Vertex AI Workload Identity:
 
 1. Store your Gemini API key in Secret Manager:
    ```bash
@@ -97,32 +97,25 @@ To enable Gemini LLM structured investigation planning via Google Secret Manager
    gcloud run services update astra-investigation-service \
        --region us-central1 \
        --set-secrets GEMINI_API_KEY=gemini-api-key:latest \
-       --set-env-vars ASTRA_USE_LLM=true,GEMINI_MODEL=gemini-2.5-flash
+       --set-env-vars ASTRA_GEMINI_MODEL=gemini-3.5-flash-lite
    ```
 
 ---
 
-## 6. Verification & Remote Execution
+## 6. Remote Verification
 
-Once deployed, verify the endpoints:
+```bash
+# Get service URL
+SERVICE_URL=$(gcloud run services describe astra-investigation-service --region us-central1 --format='value(status.url)')
 
-- **Health Check**:
-  ```bash
-  curl -s https://<SERVICE_URL>/health
-  # Response: {"status":"healthy","service":"astra-investigation-service","version":"0.3.0","mode":"bounded-evidence-driven"}
-  ```
+# 1. Health check
+curl -s "${SERVICE_URL}/health"
 
-- **Run Remote Judge Demo**:
-  ```bash
-  curl -s -X POST https://<SERVICE_URL>/judge-demo
-  ```
+# 2. Remote agent investigation
+curl -X POST "${SERVICE_URL}/agent/investigate" \
+     -H "Content-Type: application/json" \
+     -d '{"scenario": "hero", "seed": 42}'
 
-- **Run Remote Real-World Dataset Investigation**:
-  ```bash
-  curl -s -X POST https://<SERVICE_URL>/real-demo
-  ```
-
-- **Retrieve Investigation Report Schema**:
-  ```bash
-  curl -s https://<SERVICE_URL>/schema
-  ```
+# 3. Complete remote verification
+python -m astra_poc cloud-verify --url "${SERVICE_URL}"
+```

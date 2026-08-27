@@ -13,7 +13,7 @@ This document contains copy-paste-ready text formatted for the hackathon submiss
 
 | Component | Technology Used | Exact Role in ASTRA |
 | :--- | :--- | :--- |
-| **Foundation Model** | **Gemini 3.5+ (Gemini 2.5 Flash / Gemini 3.5 Flash-Lite)** via `google-genai 2.20.0` | Synthesizes anomaly context, reasons over competing hypotheses, and proposes next diagnostic actions using structured JSON schemas. |
+| **Foundation Model** | **Gemini 3.5+ (Gemini 3.5 Flash-Lite / Gemini 3.7 Flash)** via `google-genai 2.20.0` | Synthesizes anomaly context, reasons over competing hypotheses, and proposes next diagnostic actions using structured JSON schemas. |
 | **Agent Framework** | **Google ADK (`google-adk 2.8.0`)** | Encapsulates `ASTRAInvestigationAgent`, manages the investigation planning turns, and binds bounded ASTRA diagnostic tools. |
 | **Cloud Infrastructure** | **Google Cloud Run** | Hosts the containerized FastAPI backend, executes end-to-end investigation requests on `$PORT`, and emits structured Cloud Logging. |
 
