@@ -450,8 +450,8 @@ async def execute_budget_demo() -> None:
         ("Medium Budget (3.0u, 3 tests)", InvestigationBudget(max_steps=3, max_tests=3, max_cost_units=3.0)),
         ("High Budget (8.0u, 6 tests)", InvestigationBudget(max_steps=6, max_tests=6, max_cost_units=8.0)),
     ]:
-        engine = InvestigationEngine(budget=b_budget)
-        rep = await engine.investigate(sc, strategy="evidence_driven", force_reprocess=True)
+        engine = InvestigationEngine()
+        rep = await engine.investigate(sc, strategy="evidence_driven", budget=b_budget, force_reprocess=True)
         print(f"[{b_label}]: Steps={rep.budget.steps_used} | Cost={rep.budget.cost_units_used:.1f}u | Stop={rep.stop_reason.value} | Decision={rep.decision_outcome.decision.value if rep.decision_outcome else 'N/A'}")
     print("=" * 75)
 

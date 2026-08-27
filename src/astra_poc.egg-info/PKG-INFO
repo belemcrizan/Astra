@@ -1,187 +1,106 @@
 Metadata-Version: 2.4
 Name: astra-poc
-Version: 0.4.0
-Summary: ASTRA v0.4: Autonomous Evidence-Driven Investigation Engine for Weak Signals and Regimes
+Version: 0.4.1
+Summary: ASTRA v0.4.1: Autonomous Evidence-Driven Investigation Engine powered by Google ADK and Gemini 3.5+ on Google Cloud Run
 Requires-Python: >=3.12
 Description-Content-Type: text/markdown
 Requires-Dist: numpy>=2.0
 Requires-Dist: pydantic>=2.8
 Requires-Dist: scipy>=1.13
+Requires-Dist: google-adk>=2.8.0
+Requires-Dist: google-genai>=2.20.0
+Requires-Dist: fastapi>=0.115.0
+Requires-Dist: uvicorn>=0.30.0
+Requires-Dist: requests>=2.30.0
 Provides-Extra: api
-Requires-Dist: fastapi>=0.115; extra == "api"
-Requires-Dist: uvicorn[standard]>=0.30; extra == "api"
+Requires-Dist: fastapi>=0.115.0; extra == "api"
+Requires-Dist: uvicorn[standard]>=0.30.0; extra == "api"
 Provides-Extra: dev
 Requires-Dist: pytest>=8.0; extra == "dev"
 Provides-Extra: cloud
-Requires-Dist: google-genai>=0.1.0; extra == "cloud"
+Requires-Dist: google-genai>=2.20.0; extra == "cloud"
+Requires-Dist: google-adk>=2.8.0; extra == "cloud"
 
-# ASTRA v0.3 — Autonomous Evidence-Driven Investigation Engine
+# ASTRA v0.4.1 — Autonomous Evidence-Driven Investigation Engine
 
-> **ASTRA** is an evidence-driven autonomous investigation engine for weak signals, anomalies, and regime changes, designed with strict falsification discipline, a formal state machine, and a sandboxed restricted execution boundary.
+> **ASTRA** turns anomaly alerts into bounded, evidence-backed investigations. Instead of escalating every unusual signal or guessing blindly, ASTRA uses **Google ADK** and **Gemini 3.5+** for intelligent investigation planning, while enforcing a **Restricted DSL deterministic execution boundary** that executes statistical algorithms, updates competing hypotheses, evaluates Value of Information (VoI), and deploys seamlessly on **Google Cloud Run**.
 
 [![CI](https://github.com/belemcrizan/Astra/actions/workflows/ci.yml/badge.svg)](https://github.com/belemcrizan/Astra/actions/workflows/ci.yml)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
+[![Google ADK](https://img.shields.io/badge/Agent_Framework-Google_ADK_2.8-blue.svg)](docs/GOOGLE_AGENT_ARCHITECTURE.md)
+[![Gemini 3.5+](https://img.shields.io/badge/LLM-Gemini_3.5+-orange.svg)](docs/HACKATHON_ELIGIBILITY.md)
+[![Google Cloud Run](https://img.shields.io/badge/Google_Cloud_Run-Ready_%26_Verified-green.svg)](deploy/README.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
-[![Docker](https://img.shields.io/badge/Docker-Cloud%20Run%20Ready-blue.svg)](deploy/README.md)
 
 ---
 
-## 1. Why ASTRA Exists
+## Mandatory Google Hackathon Stack
 
-Traditional anomaly detectors behave like simple smoke alarms: they alert you when an unusual measurement occurs, but cannot explain **why** it happened or distinguish between benign noise, structural shifts, and subtle coordinated patterns. As a result, operators face **alert fatigue**, drowning in uncontextualized false positives.
-
-ASTRA evolves anomaly detection from **passive alerting** to **bounded autonomous investigation**:
-When an unusual signal is detected, ASTRA opens an investigation case, maintains competing hypotheses, executes targeted discriminative tests to attempt to **disprove** candidate explanations, and produces an auditable decision package (`CLOSE`, `WATCH`, or `ESCALATE`).
-
-> [!IMPORTANT]
-> **Proof of Concept Status**: ASTRA is a research Proof of Concept (POC). It is not certified for production investment management, automated trading, or AML compliance. No automated external interventions are authorized.
+| Requirement | ASTRA Implementation | Runtime Verification | Status |
+| :--- | :--- | :--- | :--- |
+| **Gemini 3.5+** | Structured investigation planning and evidence interpretation via `google-genai 2.20.0` (`GoogleADKPlanner`). | `python -m astra_poc integration-test-google` | **PASS (Configured)** |
+| **Google Agent Framework** | **Google ADK (`google-adk 2.8.0`)** orchestrating `ASTRAInvestigationAgent` with bounded toolset and schema enforcement. | `python -m astra_poc google-agent-demo` | **PASS (Integrated)** |
+| **Google Cloud Infrastructure** | **Google Cloud Run** containerized FastAPI service with health checks and structured Cloud Logging. | `python -m astra_poc cloud-verify --url <URL>` | **PASS (Ready / Verified)** |
 
 ---
 
-## 2. 60-Second Overview
+## 1. End-to-End System Architecture
 
-```text
-Observed Event Stream
-        |
-        v
-Signal & Regime Gate (Robust Z-score | MAD)
-        |
-   +----+----+
-   |         |
-Expected   Suspicious
-   |         |
-   |         v
-   |   Investigation Trigger
-   |         |
-   |         v
-   |   Competing Hypotheses
-   |   (H1: Noise, H2: Regime, H3: Break, H4: Weak Signal, H_unknown)
-   |         |
-   |         v
-   |   Discriminative Evidence Acquisition (Max E[I] / Cost)
-   |         |
-   |         v
-   |   Falsification Tests (Restricted Sandboxed DSL)
-   |         |
-   |         v
-   |   Evidence & Belief Update (Changing Mind upon Falsification)
-   |         |
-   |         v
-   |   Bounded Decision Policy
-   |    /    |     \
-   | CLOSE  WATCH  ESCALATE
-   |                |
-   |                v
-   |           Human Review Package
-   |                |
-   +----------------+
-            |
-            v
-   Full Traceable Audit Trail (.json / .md / .jsonl)
+```mermaid
+flowchart TD
+    subgraph ClientLayer ["Client & Ingestion Layer"]
+        U["User / API Request / Event"] --> CR["Google Cloud Run (FastAPI Backend)"]
+    end
+
+    subgraph GoogleAgentLayer ["Google Agent Framework (Google ADK)"]
+        CR -->|"POST /agent/investigate"| ADK["ASTRAInvestigationAgent\n(google-adk 2.8.0)"]
+        ADK <-->|"Structured Planning Query\n& System Instructions"| GEM["Gemini 3.5+ (Vertex AI / Gemini API)"]
+        GEM -->|"InvestigationProposal\n(goal, op, args, rationale)"| PROP["Agent Proposal Boundary"]
+    end
+
+    subgraph ASTRABoundary ["ASTRA Restricted DSL Boundary"]
+        PROP --> VAL["DSLValidator\n(Independent Static & Runtime Verification)"]
+        VAL -- "Out-of-bounds / Code Injection" --> REJ["Proposal Rejected\n(Safety Boundary Stop)"]
+        VAL -- "Authorized DSL Operation" --> EXEC["Sandboxed DSLExecutor\n(Deterministic Statistical Algorithms)"]
+    end
+
+    subgraph StatisticalKernel ["Scientific Kernel & Falsification Engine"]
+        EXEC --> BASE["Deterministic Baseline Algorithms\n(PELT, CUSUM, BOCPD, Page-Hinkley, Wavelet)"]
+        BASE --> EV["Verified Evidence Items"]
+        EV --> POOL["Competing Hypotheses Pool\n(H1..H4, H_unknown)"]
+        POOL --> VOI["Value of Information (VoI) Engine\n(EIG, EFG, EDR, Cost, Recoverability)"]
+        VOI --> STOP["Stopping Policy\n(Decision Sufficiency Hierarchy)"]
+    end
+
+    subgraph DecisionLayer ["Governance & Audit Layer"]
+        STOP --> DEC["Investigation Decision\n(CLOSE / WATCH / DEFER / ESCALATE)"]
+        DEC --> CF["Counterfactual Explanations"]
+        CF --> AUDIT["Cryptographic Audit Trail\n(SHA-256 Provenance Chain & Logs)"]
+        AUDIT --> RESP["Structured JSON Response\n(Runtime, Framework, Trace ID, Decision)"]
+    end
 ```
 
 ---
 
-## 3. Architecture
+## 2. Core Scientific Differentiators
 
-ASTRA decouples cognitive investigation planning from numerical execution through a multi-tier modular architecture:
+1. **LLM Proposes, ASTRA Validates, Deterministic Tools Execute:**
+   Gemini does not replace statistical science. It proposes operations from ASTRA's Restricted DSL (`RUN_PELT`, `RUN_CUSUM`, `RUN_BOCPD`, `COMPARE_WINDOWS`, `CALCULATE_ENTROPY`, `TEST_TEMPORAL_STACKING`). ASTRA independently validates permissions, parameters, and budget before execution.
 
-```text
-                  +-----------------------------------+
-                  |   Event Stream / Ingestion Source |
-                  |   (Track A Synthetic / Track B)   |
-                  +-----------------+-----------------+
-                                    |
-                                    v
-                  +-----------------------------------+
-                  |         Signal & Regime Gate      |
-                  |  (Robust Z-score / Preliminary)   |
-                  +-----------------+-----------------+
-                                    | Anomaly Detected
-                                    v
-                  +-----------------------------------+
-                  |    Investigation State Machine    |
-                  |  (Formal Transition Enforcement)  |
-                  +-----------------+-----------------+
-                                    |
-            +-----------------------+-----------------------+
-            |                                               |
-            v                                               v
-+-----------------------+                       +-----------------------+
-|    Hypothesis Pool    |                       |  Evidence Acquisition |
-| (H1, H2, H3, H4, H_u) |                       | (Discriminative Info) |
-+-----------+-----------+                       +-----------+-----------+
-            |                                               |
-            +-----------------------+-----------------------+
-                                    |
-                                    v
-                  +-----------------------------------+
-                  |        Investigation Planner      |
-                  |    (Gemini API / Local Sandbox)   |
-                  +-----------------+-----------------+
-                                    | Proposes DSL Operation
-                                    v
-                  +-----------------------------------+
-                  |           Restricted DSL          |
-                  |     Schema & Grammar Definition   |
-                  +-----------------+-----------------+
-                                    |
-                                    v
-                  +-----------------------------------+
-                  |           DSL Validator           |
-                  |  (Security & Budget Enforcement)  |
-                  +--------+-----------------+--------+
-                           | Valid           | Rejected
-                           v                 v
-            +-----------------------+   +-----------------------+
-            |      DSL Executor     |   | Safe Fault Recovery   |
-            | (Sandboxed Execution) |   +-----------------------+
-            +-----------+-----------+
-                        | Test Results
-                        v
-            +-----------------------+
-            | Falsification Engine  |
-            |  (Disprove / Update)  |
-            +-----------+-----------+
-                        | Updated Scores
-                        v
-            +-----------------------+
-            |    Decision Policy    |
-            | (CLOSE / WATCH / ESC) |
-            +-----------+-----------+
-```
+2. **Falsification-First Investigation:**
+   Rather than seeking confirmatory evidence, ASTRA tests competing hypotheses ($H_1$: Transient Noise, $H_2$: Volatility Clustering, $H_3$: Structural Break, $H_4$: Periodic Pattern, $H_{\text{unknown}}$: Open-Set Regime) and changes its belief when hypotheses are disproven.
+
+3. **Value of Information (VoI) Stopping Policy:**
+   Calculates multi-attribute utility:
+   $$U(a) = \alpha \cdot \text{EIG}(a) + \beta \cdot \text{EFG}(a) + \gamma \cdot \text{EDR}(a) - \lambda_c C(a) - \lambda_r R(a)$$
+   Halting immediately when further investigation is no longer cost-justified.
+
+4. **Cryptographic Auditability & Traceability:**
+   Every event is hashed with SHA-256 in a tamper-evident provenance chain, assigning distributed trace IDs visible in Google Cloud Run logs.
 
 ---
 
-## 4. Key Scientific Capabilities
-
-### A. Competing Hypotheses
-ASTRA explicitly instantiates 5 competing explanations for every anomaly:
-- **H1 (Transient Fluctuation)**: Random sampling outlier without structural break.
-- **H2 (Gradual Regime Change)**: Persistent shift in baseline mean or volatility clustering.
-- **H3 (Abrupt Structural Break)**: Discrete parameter shock at an exact change-point.
-- **H4 (Coordinated Weak Signal)**: Sub-threshold waveform aligned across known events.
-- **H_unknown (Unmodeled Anomaly)**: Macroscopic entropy shift not captured by standard models.
-
-### B. Falsification-First Investigation
-Rather than seeking confirming evidence for an initial bias, ASTRA deploys targeted adversarial tests to **disprove** hypotheses. In the hero scenario, ASTRA begins with $H_1$ (noise) as the leading candidate, falsifies it via optimal segmentation (`RUN_PELT`), and **changes its mind** to escalate based on measured evidence.
-
-### C. Restricted DSL & Sandboxed Execution
-Agent and LLM planners are strictly confined to an approved Domain-Specific Language (DSL):
-- `RUN_CUSUM`, `RUN_PAGE_HINKLEY`, `RUN_PELT`, `RUN_BOCPD`
-- `COMPARE_WINDOWS`, `CALCULATE_ENTROPY`, `CHECK_SUSCEPTIBILITY`
-- `TEST_TEMPORAL_STACKING` (999 circular-shift empirical null permutations)
-- `REQUEST_FEATURE`, `RECOMMEND_DECISION`
-
-All operations pass through `DSLValidator`, which enforces parameter bounds, checks budget limits, and blocks code injection tokens.
-
-### D. Dual-Track Evaluation
-- **Track A (Controlled Synthetic)**: Evaluates mathematical kernel accuracy against hidden ground truth with 95% Wilson confidence intervals.
-- **Track B (Real-World Telemetry)**: Evaluates investigation stability and cost on empirical benchmark market series (March 2020 volatility shock) with strict **zero-ground-truth discipline** (no manufactured labels).
-
----
-
-## 5. Quick Start
+## 3. Quick Start
 
 ### Installation
 
@@ -190,148 +109,100 @@ All operations pass through `DSLValidator`, which enforces parameter bounds, che
 git clone https://github.com/belemcrizan/Astra.git
 cd Astra
 
-# Create virtual environment
+# Create and activate virtual environment
 python -m venv .venv
-
-# Activate environment
-# On Windows PowerShell:
+# On Windows:
 .\.venv\Scripts\Activate.ps1
 # On Linux/macOS:
 source .venv/bin/activate
 
-# Install in editable mode
+# Install with all dependencies (including Google ADK, GenAI, and FastAPI)
 pip install -e .
 ```
 
-### Essential Commands
+### Essential CLI Commands
 
 ```bash
-# 1. Run concise judge demo (<2 seconds)
-python -m astra_poc judge-demo
+# 1. Audit mandatory hackathon eligibility stack
+python -m astra_poc eligibility-check
 
-# 2. Run hero falsification scenario (changing mind)
+# 2. Run live Google ADK + Gemini 3.5+ agent investigation demo
+python -m astra_poc google-agent-demo
+
+# 3. Run live hackathon judge demonstration (<2 seconds)
+python -m astra_poc judge-demo --explain-policy
+
+# 4. Run hero scenario (hypothesis trap, falsification, and change of mind)
 python -m astra_poc hero-demo
 
-# 3. Run control scenario (benign noise safe closure)
+# 5. Run control scenario (benign noise safe closure)
 python -m astra_poc control-demo
 
-# 4. Demonstrate fault injection & security boundary
-python -m astra_poc demo-failures
+# 6. Run open-set unknown regime demo (refusing forced classification)
+python -m astra_poc unknown-demo
 
-# 5. Run Track B real-world dataset investigation
-python -m astra_poc real-demo
+# 7. Run budget adaptation demo (Low vs Med vs High budget comparison)
+python -m astra_poc budget-demo
 
-# 6. Run 30-seed scientific benchmark with 95% Wilson CIs
-python -m astra_poc benchmark --seeds 30
+# 8. Compute Quality-Cost Pareto Frontier across investigation policies
+python -m astra_poc pareto-frontier
 
-# 7. Run investigation ablations
-python -m astra_poc ablations --seeds 15
-
-# 8. Run full automated test suite
+# 9. Run full automated test suite (75 tests passing)
 python -m unittest discover -s tests -v
 ```
 
 ---
 
-## 6. Live Demo Outputs
+## 4. Experimental Results & Quality-Cost Pareto Frontier
 
-### Judge Demo Output (`python -m astra_poc judge-demo`)
-```text
-===========================================================================
-  ASTRA v0.3 — LIVE JUDGE DEMONSTRATION (Complete Investigation Cycle)
-===========================================================================
+### Quality–Cost Pareto Frontier (15 Seeds per Policy across Benchmark Scenario Families)
 
-[Stage 1: Ingestion & Anomaly Gate]
-  > Event stream ingested: 2,400 observations | Dataset SHA-256: 575d2cd6...
-  > Signal Gate triggered at t=720 (robust Z-score anomaly detected).
+| Investigation Policy | Resolution Accuracy | Mean Cost | P95 Latency | Pareto Efficient |
+|---|---:|---:|---:|:---:|
+| **Fixed-Sequence Baseline** | 46.7% | 1.20u | 228.7 ms | **YES (Low Cost Boundary)** |
+| **ASTRA Full (Adaptive VoI)** | **66.7%** | **1.80u** | **208.8 ms** | **YES (Dominates Accuracy)** |
+| **Falsification-Only** | 66.7% | 2.27u | 331.8 ms | No (Dominated by ASTRA) |
 
-[Stage 2: State Machine Lifecycle & Triage]
-  > State Machine: OBSERVING -> SIGNAL_DETECTED -> TRIAGING -> INVESTIGATING
-
-[Stage 3: Competing Hypotheses Spawned]
-  > H1: Transient Statistical Fluctuation (Prior: 45%)
-  > H2: Gradual Regime Change (Prior: 40%)
-  > H3: Abrupt Structural Break (Prior: 35%)
-  > H4: Coordinated Weak Signal (Prior: 30%)
-  > H_unknown: Unmodeled Exogenous Dynamics (Prior: 20%)
-
-[Stage 4: Autonomous Bounded Investigation & Falsification]
-  Step 1: Executed `COMPARE_WINDOWS` (Cost: 1.0 | Latency: 0.7 ms)
-  Step 2: Executed `RUN_PELT` (Cost: 2.0 | Latency: 218.1 ms)
-         Contradicts/Falsifies: ['H1']
-  Step 3: Executed `CALCULATE_ENTROPY` (Cost: 0.5 | Latency: 2.4 ms)
-  Step 4: Executed `CHECK_SUSCEPTIBILITY` (Cost: 0.5 | Latency: 0.4 ms)
-
-[Stage 5: Hypothesis Evidence Evolution & Re-ranking]
-  - H2 (Gradual Regime Change): Evidence Score = 41% | Status = ACTIVE
-  - H3 (Abrupt Structural Break): Evidence Score = 13% | Status = FALSIFIED
-  - H1 (Transient Fluctuation): Evidence Score = 1%  | Status = FALSIFIED
-
-[Stage 6: Policy Decision & Audit Trail]
-  > FINAL DECISION: ESCALATE (or DEFER on budget threshold)
-  > REASON CODES: ['REGIME_SHIFT_CONFIRMED', 'ALTERNATIVE_NOT_FALSIFIED']
-  > Human Review Required: YES
-  > Full Audit Package: artifacts/reports/<run_id>.md
-```
+*Finding: ASTRA's adaptive VoI policy matches the peak 66.7% resolution accuracy of unconstrained falsification while saving **20.7% compute cost** and reducing P95 latency from 331.8 ms to 208.8 ms.*
 
 ---
 
-## 7. Experimental Results & Ablations
+## 5. Google Cloud Run Deployment
 
-### Scientific Detection Benchmark (30 Seeds, 2,400 Points Each)
-
-| Method / Baseline | Precision (95% CI) | Recall (95% CI) | F1 Score | False Alarms / 1k | Mean Delay |
-|---|---:|---:|---:|---:|---:|
-| **ASTRA (Detection Kernel)** | 75.0% (64.5%–83.2%) | **100.0%** (94.0%–100%) | **85.7%** | 0.278 | 8.05 pts |
-| **PELT-Gaussian** | **100.0%** (100%–100%) | **100.0%** (100%–100%) | **100.0%** | **0.000** | **2.62 pts** |
-| **BOCPD-NIG** | 41.7% (30.2%–54.2%) | 71.7% (59.2%–81.7%) | 52.8% | 0.833 | 11.88 pts |
-| **Page-Hinkley** | 16.3% (12.2%–21.4%) | **100.0%** (94.0%–100%) | 28.0% | 4.278 | 22.23 pts |
-| **CUSUM** | 13.7% (10.1%–18.3%) | **100.0%** (94.0%–100%) | 24.1% | 5.236 | 24.37 pts |
-
-*Note: PELT outperforms ASTRA's preliminary detector on pure Gaussian segments; ASTRA transparently reports this finding.*
-
-### Investigation Ablations
-
-| Configuration | Escalation Rate | Mean Tests | Mean Cost Units | Mean Falsified |
-|---|---:|---:|---:|---:|
-| **ASTRA Full (Evidence-Driven)** | **10.0%** | 3.9 | **4.0** | **2.0** |
-| **Fixed-Sequence (No Evidence Selection)** | 100.0% | 3.0 | 4.0 | 0.0 |
-| **Falsification-Only (No Cost Balance)** | 10.0% | 3.9 | 6.0 | 2.0 |
-
----
-
-## 8. Google Cloud Deployment
-
-ASTRA is containerized and ready for **Google Cloud Run**:
+ASTRA is fully containerized and deployable to Google Cloud Run with a single command:
 
 ```bash
-# Deploy with one command
+# Deploy to Google Cloud Run
 ./deploy/deploy_cloud_run.sh YOUR_PROJECT_ID us-central1
 ```
 
-See [`deploy/README.md`](deploy/README.md) for full Cloud Run setup, Secret Manager integration for Gemini API, and remote verification steps.
+### Remote Cloud Run Verification
+
+```bash
+# Verify live Cloud Run service endpoint
+python -m astra_poc cloud-verify --url https://astra-poc-XXXX-uc.a.run.app
+```
 
 ---
 
-## 9. Documentation Index
+## 6. Complete Documentation Index
 
-- [Architecture & State Machine](docs/ARCHITECTURE_V03.md)
-- [Non-Technical Guide](docs/NON_TECHNICAL_GUIDE.md)
-- [Judging Evidence Matrix](docs/JUDGING_EVIDENCE.md)
-- [Video Demo Script](docs/DEMO_SCRIPT.md)
-- [Dataset Cards (Track A & B)](docs/DATASET_CARD.md)
-- [STRIDE Threat Model](docs/THREAT_MODEL_STRIDE.md)
-- [Threats to Validity](docs/THREATS_TO_VALIDITY.md)
-- [Scientific Validation Protocol](docs/VALIDATION_PROTOCOL.md)
-- [Agents & Statistical Methods](docs/AGENTS_AND_METHODS.md)
-- [Migration Guide v0.2 $\rightarrow$ v0.3](docs/MIGRATION_V02_TO_V03.md)
-- [Preregistration Identity](PREREGISTRATION.md)
+- [Google Agent Architecture & Design](docs/GOOGLE_AGENT_ARCHITECTURE.md)
+- [Hackathon Eligibility Compliance Matrix](docs/HACKATHON_ELIGIBILITY.md)
+- [Devpost Submission Content](docs/DEVPOST_UPDATE.md)
+- [Video Demonstration Script (3:30)](docs/DEMO_SCRIPT.md)
+- [Corrective Validation & Root Cause Analysis](docs/V04_1_CORRECTIVE_VALIDATION.md)
+- [Negative Results & Disproven Architectures](docs/NEGATIVE_RESULTS.md)
+- [Claims & Evidence Alignment Matrix](docs/CLAIMS_AND_EVIDENCE.md)
+- [Dataset Cards (Track A & B + 10 Families)](docs/DATASET_CARD.md)
+- [STRIDE Threat Model & Security Boundaries](docs/THREAT_MODEL_STRIDE.md)
+- [Scientific Preregistration v0.4.1](PREREGISTRATION.md)
 - [Google Cloud Deployment Guide](deploy/README.md)
 
 ---
 
-## 10. Limitations & Epistemic Honesty
+## 7. Limitations & Epistemic Honesty
 
-1. **Synthetic vs Real**: Synthetic benchmark results establish statistical sanity under controlled assumptions, not external real-world accuracy.
+1. **Synthetic vs Real**: Synthetic benchmark results establish statistical sanity under controlled generative assumptions, not external real-world accuracy.
 2. **Heuristic Scoring**: `evidence_score` is an operational ranking metric, not a calibrated probability.
-3. **Bounded Scope**: ASTRA is a POC. It provides decision support and audit trails; it does not replace human domain expertise or execute production interventions.
+3. **Bounded Scope**: ASTRA is a research POC. It provides decision support and audit trails; it does not replace human domain expertise or execute production interventions.
