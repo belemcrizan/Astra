@@ -1,7 +1,12 @@
-from .runner import BenchmarkRunner, run_ablations_benchmark, run_full_benchmark
+from .oracle import PrivilegedOracle
+from .pareto import ParetoFrontierAnalyzer
+from .runner import InvestigationBenchmarkRunner
+from .scenarios import BenchmarkScenario, ScenarioGenerator
 
 __all__ = [
-    "BenchmarkRunner",
-    "run_full_benchmark",
-    "run_ablations_benchmark",
+    "BenchmarkScenario",
+    "InvestigationBenchmarkRunner",
+    "ParetoFrontierAnalyzer",
+    "PrivilegedOracle",
+    "ScenarioGenerator",
 ]

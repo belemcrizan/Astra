@@ -59,7 +59,7 @@ class EndToEndTests(unittest.TestCase):
 
         engine = InvestigationEngine(Settings(points=1200, seed=999))
         report = asyncio.run(engine.investigate(BenignData(), force_reprocess=True))
-        self.assertIn(report.decision_outcome.decision, [InvestigationDecision.CLOSE, InvestigationDecision.WATCH])
+        self.assertIn(report.decision_outcome.decision, [InvestigationDecision.CLOSE, InvestigationDecision.WATCH, InvestigationDecision.DEFER])
         self.assertNotEqual(report.decision_outcome.decision, InvestigationDecision.ESCALATE)
 
 

@@ -1,4 +1,4 @@
-name: astra-v03-ci
+name: astra-v04-ci
 
 on:
   push:
@@ -18,10 +18,14 @@ jobs:
           cache: pip
       - run: python -m pip install -e ".[api,dev]"
       - run: python -m unittest discover -s tests -v
-      - run: python -m astra_poc judge-demo
+      - run: python -m astra_poc judge-demo --explain-policy
       - run: python -m astra_poc hero-demo
       - run: python -m astra_poc control-demo
-      - run: python -m astra_poc demo-failures
+      - run: python -m astra_poc unknown-demo
+      - run: python -m astra_poc budget-demo
+      - run: python -m astra_poc adversarial-demo
+      - run: python -m astra_poc multimodal-demo
+      - run: python -m astra_poc pareto-frontier
       - run: python -m astra_poc real-demo
       - run: python -m astra_poc schema
       - run: python -m astra_poc preregistration

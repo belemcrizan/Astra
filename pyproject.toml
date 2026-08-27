@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "astra-poc"
-version = "0.3.0"
-description = "Evidence-Driven Autonomous Investigation Engine for Weak Signals and Regime Changes (POC)"
+version = "0.4.0"
+description = "ASTRA v0.4: Autonomous Evidence-Driven Investigation Engine for Weak Signals and Regimes"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [

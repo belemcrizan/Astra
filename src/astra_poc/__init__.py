@@ -1,3 +1,3 @@
-"""ASTRA v0.3: Autonomous Evidence-Driven Investigation of Signals and Regimes."""
+"""ASTRA v0.4 — Autonomous Evidence-Driven Investigation Engine."""
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"

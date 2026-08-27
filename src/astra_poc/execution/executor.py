@@ -143,6 +143,7 @@ class DSLExecutor:
                     entropies.append(float(-(probs * np.log(probs)).sum()))
                 max_diff = max(entropies) - min(entropies)
                 is_disorder_shift = max_diff > 0.20
+                is_extreme_disorder = max_diff > 0.45
 
                 ev = EvidenceItem(
                     code="ENTROPY_DIFFERENTIAL",
@@ -150,12 +151,19 @@ class DSLExecutor:
                     value=round(max_diff, 4),
                     threshold=0.20,
                     passed=is_disorder_shift,
-                    hypotheses_discriminated=["H1", "H2"],
+                    hypotheses_discriminated=["H1", "H2", "H_unknown"],
                     why_selected=operation.reasoning,
                     cost_units=operation.cost_units,
                 )
-                supports = ["H2"] if is_disorder_shift else ["H1"]
-                contradicts = ["H1"] if is_disorder_shift else ["H2"]
+                if is_extreme_disorder:
+                    supports = ["H_unknown"]
+                    contradicts = ["H1", "H2"]
+                elif is_disorder_shift:
+                    supports = ["H2"]
+                    contradicts = ["H1"]
+                else:
+                    supports = ["H1"]
+                    contradicts = ["H2", "H_unknown"]
                 return self._build_result(operation, {"entropies": entropies, "max_diff": max_diff}, [ev], supports, contradicts, started)
 
             elif op_name == DSLOperationName.CHECK_SUSCEPTIBILITY:
@@ -163,6 +171,7 @@ class DSLExecutor:
                 susceptibilities = [float(np.var(part) * len(part)) for part in windows]
                 ratio = max(susceptibilities) / max(min(susceptibilities), 1e-12)
                 is_high_ratio = ratio >= 2.0
+                is_extreme_ratio = ratio >= 15.0
 
                 ev = EvidenceItem(
                     code="SUSCEPTIBILITY_RATIO",
@@ -170,12 +179,19 @@ class DSLExecutor:
                     value=round(ratio, 3),
                     threshold=2.0,
                     passed=is_high_ratio,
-                    hypotheses_discriminated=["H1", "H2"],
+                    hypotheses_discriminated=["H1", "H2", "H_unknown"],
                     why_selected=operation.reasoning,
                     cost_units=operation.cost_units,
                 )
-                supports = ["H2"] if is_high_ratio else ["H1"]
-                contradicts = ["H1"] if is_high_ratio else ["H2"]
+                if is_extreme_ratio:
+                    supports = ["H_unknown"]
+                    contradicts = ["H1", "H2"]
+                elif is_high_ratio:
+                    supports = ["H2"]
+                    contradicts = ["H1"]
+                else:
+                    supports = ["H1"]
+                    contradicts = ["H2", "H_unknown"]
                 return self._build_result(operation, {"susceptibilities": susceptibilities, "ratio": ratio}, [ev], supports, contradicts, started)
 
             elif op_name == DSLOperationName.TEST_TEMPORAL_STACKING:

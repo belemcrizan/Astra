@@ -2,213 +2,118 @@ from __future__ import annotations
 
 import asyncio
 import json
-import statistics
 import time
 from pathlib import Path
 from typing import Any
+import numpy as np
 
-from ..adapters.synthetic import SyntheticMarketAdapter
 from ..config import Settings
-from ..contracts import InvestigationDecision, InvestigationReport
-from ..datasets import generate_synthetic_market
-from ..evaluation import evaluate_detections, wilson_interval
+from ..contracts import InvestigationBudget, InvestigationDecision
 from ..investigation.engine import InvestigationEngine
-from ..preregistration import PREREGISTRATION, preregistration_hash
-from ..stacking import event_stacking_test
+from .oracle import PrivilegedOracle
+from .pareto import ParetoFrontierAnalyzer
+from .scenarios import ScenarioGenerator
 
 
-class BenchmarkRunner:
-    """Runs scientific benchmarks, comparative investigation baselines, and ablations for ASTRA v0.3."""
+class InvestigationBenchmarkRunner:
+    """Runs Multi-Seed Investigation Benchmarks, Policy Baselines, and Ablations for ASTRA v0.4."""
 
-    def __init__(self, settings: Settings | None = None):
+    def __init__(self, settings: Settings | None = None) -> None:
         self.settings = settings or Settings.from_env()
 
-    async def run_investigation_benchmark(self, seed_count: int = 30, points: int = 2400) -> dict[str, Any]:
+    async def run_investigation_benchmark(self, seeds: int = 30) -> dict[str, Any]:
+        """Runs the investigation benchmark across multiple families and seeds."""
         engine = InvestigationEngine(self.settings)
-        rows: list[dict[str, Any]] = []
+        families = ["A", "B", "C", "D", "H", "I"]
+        results: list[dict[str, Any]] = []
 
-        for seed in range(seed_count):
-            market = generate_synthetic_market(points=points, seed=seed)
-            report = await engine.investigate(market, strategy="evidence_driven", force_reprocess=True)
-            eval_data = report.scientific_evaluation
+        for seed in range(seeds):
+            fam = families[seed % len(families)]
+            scenario = ScenarioGenerator.generate_scenario(fam, seed=seed)
+            
+            t0 = time.perf_counter()
+            report = await engine.investigate(scenario, strategy="evidence_driven", force_reprocess=True)
+            latency = (time.perf_counter() - t0) * 1000
 
-            # H2 zero-signal null test
-            null_data = generate_synthetic_market(points=points, seed=seed, signal_amplitude=0.0)
-            stacking_cfg = PREREGISTRATION["stacking"]
-            null_stacking = event_stacking_test(
-                null_data.returns,
-                null_data.event_indicator,
-                null_data.template,
-                permutations=stacking_cfg["permutations"],
-                alpha=stacking_cfg["alpha"],
-                seed=seed,
+            dec = report.decision_outcome.decision if report.decision_outcome else InvestigationDecision.REQUEST_HUMAN_REVIEW
+            regret_info = PrivilegedOracle.calculate_regret(
+                scenario=scenario,
+                policy_decision=dec,
+                policy_cost=report.budget.cost_units_used,
+                policy_tests=report.budget.tests_used,
             )
 
-            rows.append({
+            results.append({
                 "seed": seed,
-                "latency_ms": report.metrics["total_latency_ms"],
-                "cost_units": report.metrics["cost_units_used"],
-                "tests_used": report.metrics["tests_executed_count"],
-                "decision": report.metrics["decision"],
-                "regime": eval_data["regime_metrics"],
-                "anomaly": eval_data["anomaly_metrics"],
-                "baselines": {name: item["metrics"] for name, item in eval_data["baselines"].items()},
-                "h2_p_value": eval_data["stacking_h2"].get("p_value"),
-                "h2_null_p_value": null_stacking.p_value,
-                "hypotheses_falsified": sum(h.status == "falsified" for h in report.competing_hypotheses),
+                "family": fam,
+                "decision": dec.value,
+                "expected_decision": scenario.expected_decision.value,
+                "is_correct": regret_info["is_correct_resolution"],
+                "cost_units": report.budget.cost_units_used,
+                "tests_used": report.budget.tests_used,
+                "stop_reason": report.stop_reason.value,
+                "latency_ms": latency,
+                "cost_regret": regret_info["cost_regret"],
+                "unknown_score": report.unknown_score,
             })
 
-        total_points = seed_count * points
-        latencies = sorted(float(r["latency_ms"]) for r in rows)
-        costs = sorted(float(r["cost_units"]) for r in rows)
-        h2_hits = sum(int(r["h2_p_value"] <= PREREGISTRATION["stacking"]["alpha"]) for r in rows if r["h2_p_value"] is not None)
-        h2_null_hits = sum(int(r["h2_null_p_value"] <= PREREGISTRATION["stacking"]["alpha"]) for r in rows)
-
-        baseline_names = sorted(rows[0]["baselines"].keys())
+        acc = float(np.mean([r["is_correct"] for r in results]))
+        mean_cost = float(np.mean([r["cost_units"] for r in results]))
+        mean_tests = float(np.mean([r["tests_used"] for r in results]))
+        p95_lat = float(np.percentile([r["latency_ms"] for r in results], 95))
+        mean_regret = float(np.mean([r["cost_regret"] for r in results]))
 
         summary = {
-            "scope": "synthetic_controlled_benchmark_not_external_validation",
-            "methodology_version": PREREGISTRATION["methodology_version"],
-            "preregistration_sha256": preregistration_hash(),
-            "runs": seed_count,
-            "points_per_run": points,
-            "astra_regime": _aggregate([r["regime"] for r in rows], total_points),
-            "astra_anomaly": _aggregate([r["anomaly"] for r in rows], total_points),
-            "baselines": {name: _aggregate([r["baselines"][name] for r in rows], total_points) for name in baseline_names},
-            "h2_significant_rate_at_preregistered_alpha": h2_hits / seed_count,
-            "h2_significant_rate_ci95": wilson_interval(h2_hits, seed_count),
-            "h2_false_positive_rate_under_zero_signal": h2_null_hits / seed_count,
-            "h2_false_positive_rate_ci95": wilson_interval(h2_null_hits, seed_count),
-            "latency_p50_ms": statistics.median(latencies),
-            "latency_p95_ms": latencies[min(len(latencies) - 1, round(0.95 * (len(latencies) - 1)))],
-            "cost_p50_units": statistics.median(costs),
-            "mean_tests_per_investigation": statistics.mean(r["tests_used"] for r in rows),
-            "mean_falsified_hypotheses": statistics.mean(r["hypotheses_falsified"] for r in rows),
+            "runs": len(results),
+            "investigation_accuracy": round(acc * 100.0, 1),
+            "mean_cost_units": round(mean_cost, 2),
+            "mean_tests_used": round(mean_tests, 2),
+            "latency_p95_ms": round(p95_lat, 1),
+            "mean_oracle_cost_regret": round(mean_regret, 2),
+            "detailed_runs": results,
         }
 
-        output_path = self.settings.output_dir / "reports" / "benchmark-v0.3-latest.json"
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        output_path.write_text(json.dumps({"summary": summary, "runs": rows}, indent=2), encoding="utf-8")
-        output_path.with_suffix(".md").write_text(_render_benchmark_markdown(summary), encoding="utf-8")
+        # Save artifact
+        out_dir = self.settings.output_dir / "reports"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        (out_dir / "investigation-benchmark-v0.4-latest.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
 
-        return {"summary": summary, "output_file": str(output_path)}
+        return summary
 
-    async def run_ablations_benchmark(self, seeds: int = 15, points: int = 2400) -> dict[str, Any]:
-        """Runs the 5 ablation configurations to isolate value of each component."""
+    async def run_investigation_ablations(self, seeds: int = 15) -> dict[str, Any]:
+        """Runs ablation suite comparing Full Adaptive ASTRA against baselines."""
         engine = InvestigationEngine(self.settings)
-        configs = [
-            ("ASTRA Full (Evidence-Driven)", "evidence_driven"),
-            ("ASTRA Fixed-Sequence (No Evidence Selection)", "fixed"),
-            ("ASTRA Falsification-Only (No Score Balance)", "falsification_only"),
-        ]
+        policies = ["evidence_driven", "fixed_sequence", "falsification_only"]
+        families = ["A", "B", "C", "D", "H"]
+        policy_runs: dict[str, list[dict[str, Any]]] = {p: [] for p in policies}
 
-        ablation_results: dict[str, Any] = {}
-
-        for name, strat in configs:
-            run_records = []
+        for p in policies:
             for seed in range(seeds):
-                market = generate_synthetic_market(points=points, seed=seed)
-                rep = await engine.investigate(market, strategy=strat, force_reprocess=True)
-                run_records.append({
-                    "decision": rep.decision_outcome.decision.value if rep.decision_outcome else "UNKNOWN",
-                    "escalated": bool(rep.decision_outcome and rep.decision_outcome.decision == InvestigationDecision.ESCALATE),
-                    "tests": rep.budget.tests_used,
-                    "cost": rep.budget.cost_units_used,
-                    "latency_ms": rep.metrics["total_latency_ms"],
-                    "falsified_count": sum(h.status == "falsified" for h in rep.competing_hypotheses),
+                fam = families[seed % len(families)]
+                scenario = ScenarioGenerator.generate_scenario(fam, seed=seed)
+                
+                t0 = time.perf_counter()
+                report = await engine.investigate(scenario, strategy=p, force_reprocess=True)
+                latency = (time.perf_counter() - t0) * 1000
+
+                dec = report.decision_outcome.decision if report.decision_outcome else InvestigationDecision.REQUEST_HUMAN_REVIEW
+                regret_info = PrivilegedOracle.calculate_regret(
+                    scenario=scenario,
+                    policy_decision=dec,
+                    policy_cost=report.budget.cost_units_used,
+                    policy_tests=report.budget.tests_used,
+                )
+
+                policy_runs[p].append({
+                    "is_correct": regret_info["is_correct_resolution"],
+                    "cost_units": report.budget.cost_units_used,
+                    "tests_used": report.budget.tests_used,
+                    "latency_ms": latency,
+                    "cost_regret": regret_info["cost_regret"],
                 })
-            
-            escalations = sum(int(r["escalated"]) for r in run_records)
-            ablation_results[name] = {
-                "strategy": strat,
-                "runs": seeds,
-                "escalation_rate": escalations / seeds,
-                "escalation_rate_ci95": wilson_interval(escalations, seeds),
-                "mean_tests": round(statistics.mean(r["tests"] for r in run_records), 2),
-                "mean_cost_units": round(statistics.mean(r["cost"] for r in run_records), 2),
-                "mean_falsified_count": round(statistics.mean(r["falsified_count"] for r in run_records), 2),
-                "latency_p50_ms": round(statistics.median(r["latency_ms"] for r in run_records), 2),
-            }
 
-        output_path = self.settings.output_dir / "reports" / "ablations-v0.3-latest.json"
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        output_path.write_text(json.dumps(ablation_results, indent=2), encoding="utf-8")
-        output_path.with_suffix(".md").write_text(_render_ablations_markdown(ablation_results), encoding="utf-8")
-
-        return ablation_results
-
-
-def _aggregate(items: list[dict], total_points: int) -> dict:
-    tp = sum(int(item["true_positives"]) for item in items)
-    fp = sum(int(item["false_positives"]) for item in items)
-    fn = sum(int(item["false_negatives"]) for item in items)
-    precision = tp / (tp + fp) if tp + fp else 0.0
-    recall = tp / (tp + fn) if tp + fn else 0.0
-    f1 = 2 * precision * recall / (precision + recall) if precision + recall else 0.0
-    delays = [prediction - actual for item in items for actual, prediction in item.get("matched_pairs", [])]
-    return {
-        "true_positives": tp,
-        "false_positives": fp,
-        "false_negatives": fn,
-        "precision": precision,
-        "precision_ci95": wilson_interval(tp, tp + fp),
-        "recall": recall,
-        "recall_ci95": wilson_interval(tp, tp + fn),
-        "f1": f1,
-        "false_alarms_per_1000": 1000 * fp / max(total_points, 1),
-        "mean_signed_delay": statistics.mean(delays) if delays else None,
-        "mean_absolute_delay": statistics.mean(abs(delay) for delay in delays) if delays else None,
-    }
-
-
-def _render_benchmark_markdown(summary: dict) -> str:
-    lines = [
-        "# ASTRA v0.3 — Scientific Benchmark Summary",
-        "",
-        "> Controlled synthetic evaluation for statistical sanity testing. Does not constitute external real-world validation.",
-        "",
-        "| Detector / Method | Precision | Recall | F1 | False Alarms / 1k | Mean Abs. Delay |",
-        "|---|---:|---:|---:|---:|---:|",
-    ]
-    methods = {"ASTRA (Detection Kernel)": summary["astra_regime"], **summary["baselines"]}
-    for name, item in methods.items():
-        delay_str = "n/a" if item["mean_absolute_delay"] is None else f"{item['mean_absolute_delay']:.2f}"
-        lines.append(
-            f"| {name} | {item['precision']:.1%} | {item['recall']:.1%} | {item['f1']:.1%} | {item['false_alarms_per_1000']:.3f} | {delay_str} |"
-        )
-
-    lines += [
-        "",
-        f"- **Runs Evaluated:** {summary['runs']} seeds ({summary['points_per_run']} points each)",
-        f"- **Latency p95:** {summary['latency_p95_ms']:.2f} ms",
-        f"- **Mean Tests / Investigation:** {summary['mean_tests_per_investigation']:.1f}",
-        f"- **Mean Hypotheses Falsified / Run:** {summary['mean_falsified_hypotheses']:.1f}",
-        f"- **Methodology SHA-256:** `{summary['preregistration_sha256']}`",
-        f"- **H2 Signal Power (Fixed Signal):** {summary['h2_significant_rate_at_preregistered_alpha']:.1%} (95% CI {summary['h2_significant_rate_ci95']})",
-        f"- **H2 False Positive Rate (Zero Signal):** {summary['h2_false_positive_rate_under_zero_signal']:.1%} (95% CI {summary['h2_false_positive_rate_ci95']})",
-        "",
-    ]
-    return "\n".join(lines)
-
-
-def _render_ablations_markdown(ablations: dict) -> str:
-    lines = [
-        "# ASTRA v0.3 — Investigation Ablation Results",
-        "",
-        "| Configuration | Escalation Rate | Mean Tests | Mean Cost Units | Mean Falsified | Latency p50 |",
-        "|---|---:|---:|---:|---:|---:|",
-    ]
-    for name, res in ablations.items():
-        lines.append(
-            f"| {name} | {res['escalation_rate']:.1%} | {res['mean_tests']:.1f} | {res['mean_cost_units']:.1f} | {res['mean_falsified_count']:.1f} | {res['latency_p50_ms']:.1f} ms |"
-        )
-    lines.append("")
-    return "\n".join(lines)
-
-
-async def run_full_benchmark(seeds: int = 30, points: int = 2400) -> dict[str, Any]:
-    return await BenchmarkRunner().run_investigation_benchmark(seed_count=seeds, points=points)
-
-
-async def run_ablations_benchmark(seeds: int = 15, points: int = 2400) -> dict[str, Any]:
-    return await BenchmarkRunner().run_ablations_benchmark(seeds=seeds, points=points)
+        pareto_table = ParetoFrontierAnalyzer.evaluate_pareto_frontier(policy_runs)
+        return {
+            "runs_per_policy": seeds,
+            "pareto_frontier": pareto_table,
+        }
